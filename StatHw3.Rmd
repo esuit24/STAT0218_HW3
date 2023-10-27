@@ -1,15 +1,15 @@
-stop_data <- read_csv("Desktop/Stat_Learn/Minneapolis_Police_Stop_Data.csv")
+---
+title: "Stat_Hw3"
+author: "Ellie Suit"
+date: "2023-10-27"
+output: html_document
+---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
 
-# May 25th 2020, George Floyd was murdered by MPD 
-# Might be interesting to see how policing practices change before and after
-# George Floyd 
-
-# Hints: 
-# Given the exact time for when the stop happened - right now a character
-#if want to include time anywhere (continuous variable, pre/post George Floyd)
-#load lubridate package
-
+```{r}
 library(lubridate)
 library(sf)
 library(tidyverse)
@@ -33,7 +33,5 @@ before_gf <- stop_data %>%
   filter(case == 0) 
 tree <- rpart(problem ~ race + gender, data = before_gf)
 fancyRpartPlot(tree)
-
-
-
+```
 
