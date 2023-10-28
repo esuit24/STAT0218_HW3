@@ -9,6 +9,14 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+Research Question: 
+
+Types of Trees: 
+- Decision/Regression Tree (rpart) - simplist model 
+- Bagged Trees (ipred) - making a bunch of similar trees with different observations and determining oob 
+- Random Forest (randomforest) - making a bunch of weak learners and taking majority vote
+- Boosting Trees (xgboost) - making one tree model and predicting the error for a given variable X 
+
 ```{r}
 library(lubridate)
 library(sf)
