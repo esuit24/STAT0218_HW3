@@ -18,12 +18,14 @@ Types of Trees:
 - Boosting Trees (xgboost) - making one tree model and predicting the error for a given variable X 
 
 ```{r}
+# import libraries
 library(lubridate)
 library(sf)
 library(tidyverse)
 library(rattle)
 library(rpart)
 
+# factor-ize variables
 stop_data <- stop_data %>%
   mutate(time = as_datetime(responseDate),
          year = year(time),
@@ -35,6 +37,10 @@ stop_data <- stop_data %>%
          policePrecinct = factor(policePrecinct),
          problem = factor(problem)) 
 
+
+```
+
+```{r}
 gf_date <- as.Date("2020-05-25")
 stop_data <- stop_data %>%
   mutate(case = case_when(time <= gf_date ~ 0,
@@ -49,10 +55,19 @@ after_gf <- stop_data %>%
   preRace = factor(preRace),
   policePrecinct = factor(policePrecinct),
   problem = factor(problem)) 
+
+```
+
+
+# Decision Tree
+```{r}
 tree <- rpart(problem ~ race + gender + preRace, data = before_gf)
 fancyRpartPlot(tree)
+```
 
 
+# Random Forest
+```{r}
 rf <- randomForest(problem ~ race + gender + preRace + policePrecinct, 
                    data = before_gf %>% na.omit(),
                    importance = TRUE)
@@ -60,8 +75,8 @@ rf2 <- randomForest(problem ~ gender,
                    data = after_gf %>% na.omit())
 
 view(rf$importance)
-
 ```
+
 ```{r}
 table(after_gf$gender)
 ```
