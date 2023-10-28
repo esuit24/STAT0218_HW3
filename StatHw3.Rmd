@@ -68,17 +68,22 @@ fancyRpartPlot(tree)
 
 # Random Forest
 ```{r}
+library(ranger)
 rf <- randomForest(problem ~ race + gender + preRace + policePrecinct, 
                    data = before_gf %>% na.omit(),
                    importance = TRUE)
-rf2 <- randomForest(problem ~ gender, 
-                   data = after_gf %>% na.omit())
 
-view(rf$importance)
+after_gf_revised <- after_gf %>%
+  mutate(problem = droplevels(problem))
+rf2 <- ranger(problem ~ gender + preRace, 
+                   data = after_gf_revised %>% na.omit(),
+              importance = 'impurity')
+table(after_gf_revised$problem)
+table(levels(after_gf_revised$problem))
+
+rf2$variable.importance
 ```
 
-```{r}
-table(after_gf$gender)
-```
+
 
 
