@@ -1,6 +1,6 @@
 ---
 title: "Stat_Hw3"
-author: "Ellie Suit"
+author: "Ellie Suit, Andy Atallah, and Ai Hattori"
 date: "2023-10-27"
 output: html_document
 ---
@@ -8,6 +8,14 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
+Research Question: 
+
+Types of Trees: 
+- Decision/Regression Tree (rpart) - simplist model 
+- Bagged Trees (ipred) - making a bunch of similar trees with different observations and determining oob 
+- Random Forest (randomforest) - making a bunch of weak learners and taking majority vote
+- Boosting Trees (xgboost) - making one tree model and predicting the error for a given variable X 
 
 ```{r}
 library(lubridate)
