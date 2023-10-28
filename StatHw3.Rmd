@@ -10,12 +10,17 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 Research Question: 
+Analyze vehicleSearch before and after George Floyd incident
+- Use race, preRace, gender, policePrecinct, reason, problem, lat, long as a predictor variable 
+
 
 Types of Trees: 
 - Decision/Regression Tree (rpart) - simplist model 
 - Bagged Trees (ipred) - making a bunch of similar trees with different observations and determining oob 
 - Random Forest (randomforest) - making a bunch of weak learners and taking majority vote
 - Boosting Trees (xgboost) - making one tree model and predicting the error for a given variable X 
+
+
 
 ```{r}
 # import libraries
@@ -25,45 +30,66 @@ library(tidyverse)
 library(rattle)
 library(rpart)
 
-# factor-ize variables
-stop_data <- stop_data %>%
+
+# read in csv
+stop_data <- read_csv("Minneapolis_Police_Stop_Data.csv")
+  
+stop_data_factored <- stop_data %>%
+  na.omit() %>%
   mutate(time = as_datetime(responseDate),
-         year = year(time),
-         month = month(time),
-         day = day(time),
+         reason = factor(reason),
+         problem = factor(problem),
+         citationIssued = factor(citationIssued),
+         personSearch = factor(personSearch),
+         vehicleSearch = factor(vehicleSearch),
+         preRace = factor(preRace),
          race = factor(race),
          gender = factor(gender),
-         preRace = factor(preRace),
-         policePrecinct = factor(policePrecinct),
-         problem = factor(problem)) 
+         policePrecinct = factor(policePrecinct))
+
+stop_data_factored <- stop_data_factored %>%
+  mutate(vehicleSearch = case_when(vehicleSearch == 'NO' ~ 0,
+                                   vehicleSearch == 'YES' ~ 1))
+
 
 
 ```
 
-```{r}
-gf_date <- as.Date("2020-05-25")
-stop_data <- stop_data %>%
-  mutate(case = case_when(time <= gf_date ~ 0,
-                          time > gf_date ~ 1))
 
-before_gf <- stop_data %>%
+```{r}
+gf_date <- as.Date("2020-05-26")
+stop_data_factored <- stop_data_factored %>%
+  mutate(case = case_when(time <= gf_date ~ 0,
+                          time > gf_date ~ 1)) %>%
+  mutate(case = factor(case))
+
+before_gf <- stop_data_factored %>%
   filter(case == 0) 
-after_gf <- stop_data %>%
-  filter(case == 1) %>%
-  mutate(race = factor(race),
-  gender = factor(gender),
-  preRace = factor(preRace),
-  policePrecinct = factor(policePrecinct),
-  problem = factor(problem)) 
+after_gf <- stop_data_factored %>%
+  filter(case == 1)
+
 
 ```
 
 
 # Decision Tree
 ```{r}
-tree <- rpart(problem ~ race + gender + preRace, data = before_gf)
+#view(stop_data_factored)
+tree <- rpart(vehicleSearch ~ race + preRace + gender + policePrecinct + reason + problem + case + lat + long, data = stop_data_factored)
+
+#TODO: why does this not work for a binary variable vehicleSearch? 
 fancyRpartPlot(tree)
+
 ```
+
+```{r}
+table(stop_data_factored$vehicleSearch)
+```
+
+```{r}
+table(stop_data_factored$race)
+```
+
 
 
 # Random Forest
@@ -74,15 +100,23 @@ rf <- randomForest(problem ~ race + gender + preRace + policePrecinct,
                    importance = TRUE)
 
 after_gf_revised <- after_gf %>%
+  filter(!(problem == 'Truancy (P)')) %>%
   mutate(problem = droplevels(problem))
-rf2 <- ranger(problem ~ gender + preRace, 
+
+rf2 <- randomForest(problem ~ gender + preRace, 
                    data = after_gf_revised %>% na.omit(),
-              importance = 'impurity')
-table(after_gf_revised$problem)
-table(levels(after_gf_revised$problem))
+              importance = TRUE)
+view(rf2$importance)
+#table(after_gf_revised$problem)
+#table(levels(after_gf_revised$problem))
 
 rf2$variable.importance
 ```
+
+```{r}
+table(stop_data$problem)
+```
+
 
 
 
