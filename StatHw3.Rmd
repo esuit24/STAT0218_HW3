@@ -22,7 +22,10 @@ stop_data <- stop_data %>%
          month = month(time),
          day = day(time),
          race = factor(race),
-         gender = factor(gender))
+         gender = factor(gender),
+         preRace = factor(preRace),
+         policePrecinct = factor(policePrecinct),
+         problem = factor(problem)) 
 
 gf_date <- as.Date("2020-05-25")
 stop_data <- stop_data %>%
@@ -31,7 +34,28 @@ stop_data <- stop_data %>%
 
 before_gf <- stop_data %>%
   filter(case == 0) 
-tree <- rpart(problem ~ race + gender, data = before_gf)
+after_gf <- stop_data %>%
+  filter(case == 1) %>%
+  mutate(race = factor(race),
+  gender = factor(gender),
+  preRace = factor(preRace),
+  policePrecinct = factor(policePrecinct),
+  problem = factor(problem)) 
+tree <- rpart(problem ~ race + gender + preRace, data = before_gf)
 fancyRpartPlot(tree)
+
+
+rf <- randomForest(problem ~ race + gender + preRace + policePrecinct, 
+                   data = before_gf %>% na.omit(),
+                   importance = TRUE)
+rf2 <- randomForest(problem ~ gender, 
+                   data = after_gf %>% na.omit())
+
+view(rf$importance)
+
 ```
+```{r}
+table(after_gf$gender)
+```
+
 
