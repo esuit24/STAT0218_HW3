@@ -97,18 +97,7 @@ tree1 <- rpart(vehicleSearch ~ race + gender + policePrecinct + reason + problem
 fancyRpartPlot(tree1)
 ```
 
-
-
-```{r}
-library(randomForest)
-rf1 <- randomForest(personSearch ~ race + gender, data = stop_data_factored) 
-
-
-```
-
-```{r}
-table(stop_data_factored$personSearch)
-```
+# Random Forest
 
 ```{r}
 library(randomForest)
@@ -125,36 +114,6 @@ rf1
 rf2
 ```
 
-
-
-
-
-
-
-# Random Forest
-```{r}
-library(ranger)
-rf <- randomForest(problem ~ race + gender + preRace + policePrecinct, 
-                   data = before_gf %>% na.omit(),
-                   importance = TRUE)
-
-after_gf_revised <- after_gf %>%
-  filter(!(problem == 'Truancy (P)')) %>%
-  mutate(problem = droplevels(problem))
-
-rf2 <- randomForest(problem ~ gender + preRace, 
-                   data = after_gf_revised %>% na.omit(),
-              importance = TRUE)
-view(rf2$importance)
-#table(after_gf_revised$problem)
-#table(levels(after_gf_revised$problem))
-
-rf2$variable.importance
-```
-
-```{r}
-table(stop_data$problem)
-```
 
 
 
