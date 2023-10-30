@@ -110,6 +110,19 @@ rf1 <- randomForest(personSearch ~ race + gender, data = stop_data_factored)
 table(stop_data_factored$personSearch)
 ```
 
+```{r}
+library(randomForest)
+rf1 <- randomForest(preRace ~ reason + problem + gender + policePrecinct + night + lat + long, data = stop_data_factored, mtry = 4, importance = TRUE) 
+
+rf2 <- randomForest(race ~ reason + problem  + personSearch + gender + policePrecinct + lat + long, data = stop_data_factored, mtry = 4, importance = TRUE)
+
+
+view(rf1$importance)
+view(rf1$confusion)
+rf1$err.rate[,1]
+```
+
+
 
 
 
