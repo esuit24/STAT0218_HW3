@@ -49,7 +49,11 @@ stop_data_factored <- stop_data %>%
 
 stop_data_factored <- stop_data_factored %>%
   mutate(vehicleSearch = case_when(vehicleSearch == 'NO' ~ 0,
-                                   vehicleSearch == 'YES' ~ 1))
+                                   vehicleSearch == 'YES' ~ 1),
+         personSearch = case_when(personSearch == 'NO' ~ 0,
+                                   personSearch == 'YES' ~ 1),
+         citationIssued = case_when(citationIssued == 'NO' ~ 0,
+                                   citationIssued == 'YES' ~ 1))
 
 
 
@@ -70,12 +74,16 @@ after_gf <- stop_data_factored %>%
 
 
 ```
+```{r}
+table(stop_data_factored$race)
+```
 
 
 # Decision Tree
 ```{r}
 #view(stop_data_factored)
-tree <- rpart(vehicleSearch ~ race + preRace + gender + policePrecinct + reason + problem + case + lat + long, data = stop_data_factored)
+
+tree <- rpart(personSearch ~ race + gender + policePrecinct + reason + problem + case + lat + long + preRace, data = stop_data_factored) 
 
 #TODO: why does this not work for a binary variable vehicleSearch? 
 fancyRpartPlot(tree)
@@ -83,11 +91,23 @@ fancyRpartPlot(tree)
 ```
 
 ```{r}
-table(stop_data_factored$vehicleSearch)
+tree1 <- rpart(vehicleSearch ~ race + gender + policePrecinct + reason + problem + case + lat + long + preRace, data = stop_data_factored) 
+
+#TODO: why does this not work for a binary variable vehicleSearch? 
+fancyRpartPlot(tree1)
+```
+
+
+
+```{r}
+library(randomForest)
+rf1 <- randomForest(personSearch ~ race + gender, data = stop_data_factored) 
+
+
 ```
 
 ```{r}
-table(stop_data_factored$race)
+table(stop_data_factored$personSearch)
 ```
 
 ```{r}
@@ -101,6 +121,9 @@ view(rf1$importance)
 view(rf1$confusion)
 rf1$err.rate[,1]
 ```
+
+
+
 
 
 
