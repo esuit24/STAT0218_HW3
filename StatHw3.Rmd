@@ -118,8 +118,11 @@ rf2 <- randomForest(race ~ reason + problem  + personSearch + gender + policePre
 
 
 view(rf1$importance)
-view(rf1$confusion)
-rf1$err.rate[,1]
+
+view(rf2$importance) 
+
+rf1
+rf2
 ```
 
 
