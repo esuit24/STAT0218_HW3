@@ -29,6 +29,8 @@ library(sf)
 library(tidyverse)
 library(rattle)
 library(rpart)
+library(ipred) # for bagging
+library(caret) # for confusion matrix
 
 
 # read in csv
@@ -115,7 +117,89 @@ rf2
 ```
 
 
+# Bagging
+
+Useful link: https://bookdown.org/tpinto_home/Beyond-Additivity/bagging.html 
+
+## Split data in half to create traininig and testing data
+
+Creating training and testing data allows us to display a confusion matrix for our bagging model.
+This is useful because, even if the OOB error is low, there is still a possibility that the model predicts only one class (e.g. NO for Vehicle Searched) for every observation. 
+
+```{r}
+set.seed(1)
+rows_to_test <- sample(1:nrow(stop_data_factored),
+                       size = nrow(stop_data_factored)/2,
+                       replace = FALSE) 
+
+test_bag <- stop_data_factored[rows_to_test,]
+train_bag <- stop_data_factored[-rows_to_test,]
+```
+
+## Predict vehicle search by using all possible predictor variables*
+
+* excluding OBJECTID, masterIncidentNumber, responseDate, callDisposition, x, y, neighborhood, lastUpdatedDate, and time
+
+```{r}
+# library(ipred)
+# try a single number of bags, 25 (default)
+bag_veh <- bagging(vehicleSearch ~ reason + problem + citationIssued + personSearch
+                    + preRace + race + gender + lat + long + policePrecinct + case,
+                data = train_bag,
+                coob = TRUE) # coob: calculate out of bag error
+
+# predict on test data
+preds_veh <- predict(bag_temp, test_bag, type = "class")
+
+# confusion matrix
+# library(caret)
+confusionMatrix(preds_veh, test_bag$vehicleSearch)
+
+# print OOB error
+oob_veh <- bag_veh$err
+oob_veh
+```
+
+Classification accuracy for testing data is 99.02%. OOB error is 4.38%.
+
+### calculate importance of predictor variables for vehicleSearch
+```{r}
+# library(caret)
+# library(scales)
+# calculate importance of pred vars in our bagging built based on training data
+bag_var_imp_veh <- varImp(bag_veh)
+# bag_var_imp <- varImp(bag_temp, scale = TRUE) # didn't work
+bag_var_imp_veh
+
+# visualize
+barplot(bag_var_imp_veh$Overall,
+        names.arg = row.names(bag_var_imp_veh),
+        main = "Importance of predictor variables for vehicle search",
+        # xlab = "Predictor variable",
+        ylab = "Importance",
+        las = 2,
+        cex.names = 1)
+
+# rescale importance from 0 to 100 and visualize
+# bag_var_imp_veh_scaled <- (bag_var_imp_veh$Overall/sum(bag_var_imp_veh$Overall))*100
+bag_var_imp_veh_scaled <- bag_var_imp_veh %>%
+  mutate(Overall = (Overall/sum(Overall))*100)
+
+barplot(bag_var_imp_veh_scaled$Overall,
+        names.arg = row.names(bag_var_imp_veh_scaled),
+        main = "Importance of predictor variables for vehicle search",
+        ylab = "Importance (%)",
+        ylim = c(0,25),
+        las = 2, # rotate labels to display all row names
+        cex.names = 1)
+```
+
+### Find predictor variables that have importance less than 5% for vehicleSearch
+```{r}
+index_veh <- which(bag_var_imp_veh_scaled$Overall < 5)
+rownames(bag_var_imp_veh_scaled)[index_veh]
+```
 
 
-
+For vehicle search, thus, "case," "citationIssued," and "gender" seem to be the least important for predicting it. 
 
