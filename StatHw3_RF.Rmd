@@ -53,7 +53,10 @@ stop_data_factored <- stop_data_factored %>%
          personSearch = case_when(personSearch == 'NO' ~ 0,
                                    personSearch == 'YES' ~ 1),
          citationIssued = case_when(citationIssued == 'NO' ~ 0,
-                                   citationIssued == 'YES' ~ 1))
+                                   citationIssued == 'YES' ~ 1),
+         night = case_when(time >= 19 ~ 1,
+                           time < 6 ~ 1,
+                           TRUE ~ 0))
 
 
 
@@ -91,13 +94,51 @@ fancyRpartPlot(tree)
 ```
 
 ```{r}
-tree1 <- rpart(vehicleSearch ~ race + gender + policePrecinct + reason + problem + case + lat + long + preRace, data = stop_data_factored) 
+tree1 <- rpart(vehicleSearch ~ race + gender + policePrecinct + reason + problem + case + lat + long + preRace, data = stop_data_factored)
+
 
 #TODO: why does this not work for a binary variable vehicleSearch? 
 fancyRpartPlot(tree1)
 ```
 
 # Random Forest
+
+```{r}
+library(randomForest)
+
+rf_vs <- randomForest(factor(vehicleSearch) ~ preRace + race + gender + case + policePrecinct + night + reason + problem, data = stop_data_factored, cutoff = c(0.999999, 0.000001), ntree = 200, importance = TRUE)
+
+
+
+
+
+# Questions for TA:
+# Why does it seem like I need to set a crazy high cutoff to get positive predictions in when in the simple decision tree it seemed to output values that were not too far away from 0.5 
+# It seems like I am forcing the model to make positive predictions but it ends up predicting false positives - is there other parameters I can tune to reduce the number of false negatives (already tried mtry and ntree) 
+```
+
+
+```{r}
+rf_vs
+
+table(stop_data_factored$race, stop_data_factored$vehicleSearch)
+```
+
+```{r}
+library(MASS)
+rows_to_keep <- sample(1:nrow(stop_data_factored),
+                size = nrow(stop_data_factored)/2)
+train <- stop_data_factored[rows_to_keep,]
+test <- stop_data_factored[-rows_to_keep,] 
+
+lda_model <- lda(factor(vehicleSearch) ~ preRace + race + gender + policePrecinct + reason + problem, data = train)
+preds <- predict(lda_model, test)
+
+table(preds$class, test$vehicleSearch)
+```
+
+
+
 
 ```{r}
 library(randomForest)
