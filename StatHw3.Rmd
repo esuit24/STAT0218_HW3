@@ -1,0 +1,143 @@
+---
+title: "Stat_Hw3"
+author: "Ellie Suit, Andy Atallah, and Ai Hattori"
+date: "2023-10-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Research Question: 
+Analyze vehicleSearch before and after George Floyd incident
+- Use race, preRace, gender, policePrecinct, reason, problem, lat, long as a predictor variable 
+
+Types of Trees: 
+- Decision/Regression Tree (rpart) - simplist model 
+- Bagged Trees (ipred) - making a bunch of similar trees with different observations and determining oob 
+- Random Forest (randomforest) - making a bunch of weak learners and taking majority vote
+- Boosting Trees (xgboost) - making one tree model and predicting the error for a given variable X 
+
+# Libraries
+
+```{r}
+# import libraries
+library(lubridate)
+library(sf)
+library(tidyverse)
+library(rattle)
+library(rpart)
+
+# read in csv
+stop_data <- read_csv("stop_data.csv")
+  
+stop_data_factored <- stop_data %>%
+  na.omit() %>%
+  mutate(time = as_datetime(responseDate),
+         reason = factor(reason),
+         problem = factor(problem),
+         citationIssued = factor(citationIssued),
+         personSearch = factor(personSearch),
+         vehicleSearch = factor(vehicleSearch),
+         preRace = factor(preRace),
+         race = factor(race),
+         gender = factor(gender),
+         policePrecinct = factor(policePrecinct))
+```
+
+# Data Preparation
+
+```{r}
+gf_date <- as.Date("2020-05-26")
+stop_data_factored <- stop_data_factored %>%
+  mutate(case = case_when(time <= gf_date ~ 0,
+                          time > gf_date ~ 1)) %>%
+  mutate(case = factor(case))
+
+before_gf <- stop_data_factored %>%
+  filter(case == 0) 
+after_gf <- stop_data_factored %>%
+  filter(case == 1)
+```
+
+# Boosting
+
+```{r}
+library(xgboost)
+
+# Predict vehicleSearch
+# Wants a matrix input
+set.seed(1)
+train_rows <- sample(1:nrow(stop_data_factored), size=nrow(stop_data_factored)/2)
+
+train <- stop_data_factored[train_rows,]
+test <- stop_data_factored[-train_rows,]
+
+train$problem <- factor(as.numeric(train$problem))
+train$reason <- factor(as.numeric(train$reason))
+train$gender <- factor(as.numeric(train$gender))
+train$race <- factor(as.numeric(train$race))
+train$preRace <- factor(as.numeric(train$preRace))
+
+test$problem <- factor(as.numeric(test$problem))
+test$reason <- factor(as.numeric(test$reason))
+test$gender <- factor(as.numeric(test$gender))
+test$race <- factor(as.numeric(test$race))
+test$preRace <- factor(as.numeric(test$preRace))
+
+train$vehicleSearch <- factor(as.numeric(train$vehicleSearch))
+test$vehicleSearch <- factor(as.numeric(test$vehicleSearch))
+
+
+train$gender = as.numeric(factor(train$gender,
+                                 levels=c("Male", "Female", "Gender Non-Conforming", "Unknown"),
+                                 labels=c(1, 2, 3, 4)))
+
+train$vehicleSearch = as.numeric(factor(train$vehicleSearch,
+                                 levels=c("NO", "YES"),
+                                 labels=c(1, 2)))
+
+test$gender = as.numeric(factor(test$gender,
+                                 levels=c("Male", "Female", "Gender Non-Conforming", "Unknown"),
+                                 labels=c(1, 2, 3, 4)))
+
+test$vehicleSearch = as.numeric(factor(test$vehicleSearch,
+                                 levels=c("NO", "YES"),
+                                 labels=c(1, 2)))
+
+train$vehicleSearch <- train$vehicleSearch - 1
+test$vehicleSearch <- test$vehicleSearch - 1
+
+boost1 <- xgboost(data = train %>% select(gender) %>% as.matrix(),
+                  label = train$vehicleSearch,
+                  nrounds=100, eval_metric = "error@0.05", objective="binary:logistic")
+
+# by default, it will be a depth of 6 (harder to overfit)
+
+# Predict on test
+preds <- predict(boost1, test %>% select(gender) %>% as.matrix())
+preds_train <- predict(boost1, train %>% select(gender) %>% as.matrix())
+
+y_pred <- preds
+y_pred_2 <- preds_train 
+
+table(y_pred, test$vehicleSearch)
+table(y_pred_2, train$vehicleSearch)
+
+
+importance <- xgb.importance(model = boost1)
+boost1$importance
+
+library(caret)
+
+caret_imp <- varImp(boost1)
+
+caret_imp
+
+# Optional arguments for xgboost: eval_metric for different from rmse
+```
+
+
+
+
