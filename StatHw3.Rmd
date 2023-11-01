@@ -19,7 +19,9 @@ Types of Trees:
 - Random Forest (randomforest) - making a bunch of weak learners and taking majority vote
 - Boosting Trees (xgboost) - making one tree model and predicting the error for a given variable X 
 
-# Libraries
+
+Method: 
+Predict vehicleSearch by using race, preRace, gender, case, policePrecinct, reason, problem, lat, long, and night (whether a given incident happened between 7 pm and 6 am) as a predictor variable 
 
 ```{r}
 # import libraries
@@ -28,9 +30,14 @@ library(sf)
 library(tidyverse)
 library(rattle)
 library(rpart)
+library(ipred) # for bagging
+library(caret) # for confusion matrix
+
+# set a seed
+set.seed(1)
 
 # read in csv
-stop_data <- read_csv("stop_data.csv")
+stop_data <- read_csv("Minneapolis_Police_Stop_Data.csv")
   
 stop_data_factored <- stop_data %>%
   na.omit() %>%
@@ -44,10 +51,17 @@ stop_data_factored <- stop_data %>%
          race = factor(race),
          gender = factor(gender),
          policePrecinct = factor(policePrecinct))
+
+stop_data_factored <- stop_data_factored %>%
+  mutate(night = case_when(hour(time) >= 19 ~ 1,
+                           hour(time) < 6 ~ 1,
+                           TRUE ~ 0))
+
+
+
 ```
 
-# Data Preparation
-
+# Data preparation
 ```{r}
 gf_date <- as.Date("2020-05-26")
 stop_data_factored <- stop_data_factored %>%
@@ -55,10 +69,255 @@ stop_data_factored <- stop_data_factored %>%
                           time > gf_date ~ 1)) %>%
   mutate(case = factor(case))
 
-before_gf <- stop_data_factored %>%
-  filter(case == 0) 
-after_gf <- stop_data_factored %>%
-  filter(case == 1)
+# before_gf <- stop_data_factored %>%
+#   filter(case == 0) 
+# after_gf <- stop_data_factored %>%
+#   filter(case == 1)
+
+
+```
+```{r}
+table(stop_data_factored$race)
+```
+
+
+# Decision Tree
+
+```{r}
+tree1 <- rpart(vehicleSearch ~ race + gender + policePrecinct + reason + problem + case + lat + long + preRace + night, 
+               control = rpart.control(cp=0.00098),
+              data = stop_data_factored)
+
+
+#TODO: why does this not work for a binary variable vehicleSearch? 
+fancyRpartPlot(tree1,
+               cex = .4)
+```
+
+# Random Forest
+
+```{r}
+library(randomForest)
+
+rf_vs <- randomForest(factor(vehicleSearch) ~ preRace + race + gender + case + policePrecinct + night + reason + problem, data = stop_data_factored, cutoff = c(0.999999, 0.000001), ntree = 500, importance = TRUE)
+
+
+
+
+
+# Questions for TA:
+# Why does it seem like I need to set a crazy high cutoff to get positive predictions in when in the simple decision tree it seemed to output values that were not too far away from 0.5 
+# It seems like I am forcing the model to make positive predictions but it ends up predicting false positives - is there other parameters I can tune to reduce the number of false negatives (already tried mtry and ntree) 
+```
+
+
+```{r}
+rf_vs
+rf_vs$mtry
+rf_vs$importance
+table(stop_data_factored$race, stop_data_factored$vehicleSearch)
+```
+
+# remove less important pred vars
+```{r}
+set.seed(1)
+rf_vs_2 <- randomForest(factor(vehicleSearch) ~ preRace + race + gender + policePrecinct + reason + problem, data = stop_data_factored, cutoff = c(0.999999, 0.000001), ntree = 500, importance = TRUE)
+
+rf_vs_2
+rf_vs_2$mtry
+rf_vs_2$importance
+table(stop_data_factored$race, stop_data_factored$vehicleSearch)
+```
+
+# include case as a predictor variable
+```{r}
+set.seed(1)
+rf_vs_3 <- randomForest(factor(vehicleSearch) ~ preRace + race + gender + policePrecinct + reason + problem + case, data = stop_data_factored, cutoff = c(0.999999, 0.000001), ntree = 500, importance = TRUE)
+
+rf_vs_3
+rf_vs_3$mtry
+rf_vs_3$importance
+table(stop_data_factored$race, stop_data_factored$vehicleSearch)
+```
+
+
+# include night as a predictor variable
+```{r}
+set.seed(1)
+rf_vs_4 <- randomForest(factor(vehicleSearch) ~ preRace + race + gender + policePrecinct + reason + problem + night, data = stop_data_factored, cutoff = c(0.999999, 0.000001), ntree = 500, importance = TRUE)
+
+rf_vs_4
+rf_vs_4$mtry
+rf_vs_4$importance
+table(stop_data_factored$race, stop_data_factored$vehicleSearch)
+```
+
+```{r}
+library(MASS)
+rows_to_keep <- sample(1:nrow(stop_data_factored),
+                size = nrow(stop_data_factored)/2)
+train <- stop_data_factored[rows_to_keep,]
+test <- stop_data_factored[-rows_to_keep,] 
+
+lda_model <- lda(factor(vehicleSearch) ~ preRace + race + gender + policePrecinct + reason + problem, data = train)
+preds <- predict(lda_model, test)
+
+table(preds$class, test$vehicleSearch)
+```
+
+
+```{r}
+library(randomForest)
+rf1 <- randomForest(preRace ~ reason + problem + gender + policePrecinct + night + lat + long, data = stop_data_factored, mtry = 4, importance = TRUE) 
+
+rf2 <- randomForest(race ~ reason + problem  + personSearch + gender + policePrecinct + lat + long, data = stop_data_factored, mtry = 4, importance = TRUE)
+
+
+view(rf1$importance)
+
+view(rf2$importance) 
+
+rf1
+rf2
+```
+
+# Bagging
+
+Useful link: https://bookdown.org/tpinto_home/Beyond-Additivity/bagging.html 
+
+## Split data in half to create traininig and testing data
+
+Creating training and testing data allows us to display a confusion matrix for our bagging model.
+This is useful because, even if the OOB error is low, there is still a possibility that the model predicts only one class (e.g. NO for Vehicle Searched) for every observation. 
+
+```{r}
+set.seed(1)
+rows_to_test <- sample(1:nrow(stop_data_factored),
+                       size = nrow(stop_data_factored)/2,
+                       replace = FALSE) 
+
+test_bag <- stop_data_factored[rows_to_test,]
+train_bag <- stop_data_factored[-rows_to_test,]
+```
+
+## Predict vehicle search by using all possible predictor variables*
+
+* excluding OBJECTID, masterIncidentNumber, responseDate, callDisposition, x, y, neighborhood, lastUpdatedDate, and time
+
+```{r}
+# library(ipred)
+# try a single number of bags, 25 (default)
+bag_veh <- bagging(vehicleSearch ~ reason + problem + preRace + race + gender + lat + long + policePrecinct + case + night,
+                data = train_bag,
+                coob = TRUE) # coob: calculate out of bag error
+
+# predict on test data
+preds_veh <- predict(bag_veh, test_bag, type = "class")
+
+# confusion matrix
+# library(caret)
+confusionMatrix(preds_veh, test_bag$vehicleSearch)
+
+# print OOB error
+oob_veh <- bag_veh$err
+oob_veh
+```
+
+Classification accuracy for testing data is 90.6%. OOB error is 9.58%.
+
+# remove lat and long
+```{r}
+# library(ipred)
+# try a single number of bags, 25 (default)
+bag_veh_2 <- bagging(vehicleSearch ~ reason + problem + preRace + race + gender + policePrecinct + case + night,
+                data = train_bag,
+                coob = TRUE) # coob: calculate out of bag error
+
+# predict on test data
+preds_veh_2 <- predict(bag_veh_2, test_bag, type = "class")
+
+# confusion matrix
+# library(caret)
+confusionMatrix(preds_veh_2, test_bag$vehicleSearch)
+
+# print OOB error
+oob_veh_2 <- bag_veh_2$err
+oob_veh_2
+```
+
+Classification accuracy for testing data is 91.9%. OOB error is 8.08%.
+
+### calculate importance of predictor variables for vehicleSearch
+```{r}
+# library(caret)
+# library(scales)
+# calculate importance of pred vars in our bagging built based on training data
+bag_var_imp_veh <- varImp(bag_veh)
+# bag_var_imp <- varImp(bag_temp, scale = TRUE) # didn't work
+bag_var_imp_veh
+
+# visualize
+barplot(bag_var_imp_veh$Overall,
+        names.arg = row.names(bag_var_imp_veh),
+        main = "Importance of predictor variables for vehicle search",
+        # xlab = "Predictor variable",
+        ylab = "Importance",
+        las = 2,
+        cex.names = 1)
+
+# rescale importance from 0 to 100 and visualize
+# bag_var_imp_veh_scaled <- (bag_var_imp_veh$Overall/sum(bag_var_imp_veh$Overall))*100
+bag_var_imp_veh_scaled <- bag_var_imp_veh %>%
+  mutate(Overall = (Overall/sum(Overall))*100)
+
+barplot(bag_var_imp_veh_scaled$Overall,
+        names.arg = row.names(bag_var_imp_veh_scaled),
+        main = "Importance of predictor variables for vehicle search",
+        ylab = "Importance (%)",
+        ylim = c(0,25),
+        las = 2, # rotate labels to display all row names
+        cex.names = 1)
+```
+
+### Find predictor variables that have importance less than 5% for vehicleSearch
+```{r}
+index_veh <- which(bag_var_imp_veh_scaled$Overall < 5)
+rownames(bag_var_imp_veh_scaled)[index_veh]
+```
+
+For vehicle search, thus, "gender" and "night" seem to be the least important for predicting it. 
+
+# importance without lat and long
+
+```{r}
+# library(caret)
+# library(scales)
+# calculate importance of pred vars in our bagging built based on training data
+bag_var_imp_veh2 <- varImp(bag_veh_2)
+# bag_var_imp <- varImp(bag_temp, scale = TRUE) # didn't work
+bag_var_imp_veh2
+
+# visualize
+barplot(bag_var_imp_veh2$Overall,
+        names.arg = row.names(bag_var_imp_veh2),
+        main = "Importance of predictor variables for vehicle search",
+        # xlab = "Predictor variable",
+        ylab = "Importance",
+        las = 2,
+        cex.names = 1)
+
+# rescale importance from 0 to 100 and visualize
+# bag_var_imp_veh_scaled <- (bag_var_imp_veh$Overall/sum(bag_var_imp_veh$Overall))*100
+bag_var_imp_veh_scaled_2 <- bag_var_imp_veh2 %>%
+  mutate(Overall = (Overall/sum(Overall))*100)
+
+barplot(bag_var_imp_veh_scaled_2$Overall,
+        names.arg = row.names(bag_var_imp_veh_scaled_2),
+        main = "Importance of predictor variables for vehicle search",
+        ylab = "Importance (%)",
+        ylim = c(0,25),
+        las = 2, # rotate labels to display all row names
+        cex.names = 1)
 ```
 
 # Boosting
