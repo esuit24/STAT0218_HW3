@@ -56,8 +56,8 @@ stop_data_factored <- stop_data_factored %>%
                                    personSearch == 'YES' ~ 1),
          citationIssued = case_when(citationIssued == 'NO' ~ 0,
                                    citationIssued == 'YES' ~ 1),
-         night = case_when(time >= 19 ~ 1,
-                           time < 6 ~ 1,
+         night = case_when(hour(time) >= 19 ~ 1,
+                           hour(time) < 6 ~ 1,
                            TRUE ~ 0))
 
 
@@ -108,10 +108,23 @@ fancyRpartPlot(tree1)
 ```{r}
 library(randomForest)
 
-rf_vs <- randomForest(factor(vehicleSearch) ~ preRace + race + gender + case + policePrecinct + night + reason + problem, data = stop_data_factored, cutoff = c(0.999999, 0.000001), ntree = 200, importance = TRUE)
+mtry_vals <- seq(from = 1,
+                 to = 8,
+                 by = 1)
+rows_to_keep <- sample(1:nrow(stop_data_factored),
+                       size = nrow(stop_data_factored)/2,
+                       replace = FALSE) 
+
+train <- stop_data_factored[rows_to_keep,]
+test <- stop_data_factored[-rows_to_keep,]
 
 
+rf_vs <- randomForest(factor(vehicleSearch) ~ preRace + race + gender + policePrecinct + reason + problem, data = train, cutoff = c(0.99999, 0.00001), mtry = 3, ntree = 500, importance = TRUE)
 
+
+rf_preds <- predict(rf_vs, test)
+
+table(rf_preds, test$race)
 
 
 # Questions for TA:
@@ -121,7 +134,7 @@ rf_vs <- randomForest(factor(vehicleSearch) ~ preRace + race + gender + case + p
 
 
 ```{r}
-rf_vs
+rf_vs$importance
 
 table(stop_data_factored$race, stop_data_factored$vehicleSearch)
 ```
@@ -243,4 +256,25 @@ rownames(bag_var_imp_veh_scaled)[index_veh]
 
 
 For vehicle search, thus, "case," "citationIssued," and "gender" seem to be the least important for predicting it. 
+
+```{r}
+library(xgboost)
+library(Matrix)
+temp <- xgb.DMatrix(label = stop_data_factored$vehicleSearch, data = as.matrix(stop_data_factored %>%
+                                                                      dplyr::select(-vehicleSearch)))
+sparse_matrix <- sparse.model.matrix(vehicleSearch ~ .-1, data = stop_data_factored)
+
+model <- xgboost(factor(vehicleSearch) ~ temp, data = stop_data_factored)
+table(stop_data_factored$gender)
+```
+
+```{r}
+data(agaricus.train, package='xgboost')
+
+bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_depth = 2,
+               eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+xgb.importance(model = bst)
+```
+
+
 
