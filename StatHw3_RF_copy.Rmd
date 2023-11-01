@@ -51,7 +51,17 @@ stop_data_factored <- stop_data %>%
          policePrecinct = factor(policePrecinct))
 
 stop_data_factored <- stop_data_factored %>%
+<<<<<<< HEAD:StatHw3_RF_copy.Rmd
+  mutate(vehicleSearch = case_when(vehicleSearch == 'NO' ~ 0,
+                                   vehicleSearch == 'YES' ~ 1),
+         personSearch = case_when(personSearch == 'NO' ~ 0,
+                                   personSearch == 'YES' ~ 1),
+         citationIssued = case_when(citationIssued == 'NO' ~ 0,
+                                   citationIssued == 'YES' ~ 1),
+         night = case_when(hour(time) >= 19 ~ 1,
+=======
   mutate(night = case_when(hour(time) >= 19 ~ 1,
+>>>>>>> 4a4922316cb899c54e35fc8760956cb213cae8eb:StatHw3_RF.Rmd
                            hour(time) < 6 ~ 1,
                            TRUE ~ 0))
 
@@ -97,10 +107,27 @@ fancyRpartPlot(tree1,
 ```{r}
 library(randomForest)
 
+<<<<<<< HEAD:StatHw3_RF_copy.Rmd
+mtry_vals <- seq(from = 1,
+                 to = 8,
+                 by = 1)
+rows_to_keep <- sample(1:nrow(stop_data_factored),
+                       size = nrow(stop_data_factored)/2,
+                       replace = FALSE) 
+
+train <- stop_data_factored[rows_to_keep,]
+test <- stop_data_factored[-rows_to_keep,]
+
+=======
 rf_vs <- randomForest(factor(vehicleSearch) ~ preRace + race + gender + case + policePrecinct + night + reason + problem, data = stop_data_factored, cutoff = c(0.999999, 0.000001), ntree = 500, importance = TRUE)
+>>>>>>> 4a4922316cb899c54e35fc8760956cb213cae8eb:StatHw3_RF.Rmd
+
+rf_vs <- randomForest(factor(vehicleSearch) ~ preRace + race + gender + policePrecinct + reason + problem, data = train, cutoff = c(0.99999, 0.00001), mtry = 3, ntree = 500, importance = TRUE)
 
 
+rf_preds <- predict(rf_vs, test)
 
+table(rf_preds, test$race)
 
 
 # Questions for TA:
@@ -110,6 +137,9 @@ rf_vs <- randomForest(factor(vehicleSearch) ~ preRace + race + gender + case + p
 
 
 ```{r}
+<<<<<<< HEAD:StatHw3_RF_copy.Rmd
+rf_vs$importance
+=======
 rf_vs
 rf_vs$mtry
 rf_vs$importance
@@ -120,6 +150,7 @@ table(stop_data_factored$race, stop_data_factored$vehicleSearch)
 ```{r}
 set.seed(1)
 rf_vs_2 <- randomForest(factor(vehicleSearch) ~ preRace + race + gender + policePrecinct + reason + problem, data = stop_data_factored, cutoff = c(0.999999, 0.000001), ntree = 500, importance = TRUE)
+>>>>>>> 4a4922316cb899c54e35fc8760956cb213cae8eb:StatHw3_RF.Rmd
 
 rf_vs_2
 rf_vs_2$mtry
@@ -319,5 +350,26 @@ barplot(bag_var_imp_veh_scaled_2$Overall,
         las = 2, # rotate labels to display all row names
         cex.names = 1)
 ```
+
+
+```{r}
+library(xgboost)
+library(Matrix)
+temp <- xgb.DMatrix(label = stop_data_factored$vehicleSearch, data = as.matrix(stop_data_factored %>%
+                                                                      dplyr::select(-vehicleSearch)))
+sparse_matrix <- sparse.model.matrix(vehicleSearch ~ .-1, data = stop_data_factored)
+
+model <- xgboost(factor(vehicleSearch) ~ temp, data = stop_data_factored)
+table(stop_data_factored$gender)
+```
+
+```{r}
+data(agaricus.train, package='xgboost')
+
+bst <- xgboost(data = agaricus.train$data, label = agaricus.train$label, max_depth = 2,
+               eta = 1, nthread = 2, nrounds = 2, objective = "binary:logistic")
+xgb.importance(model = bst)
+```
+
 
 
