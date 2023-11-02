@@ -167,9 +167,9 @@ cost_tree1
 ```
 The cost of FP and FN for this single classification tree is `r cost_tree1`.
 
-## Bagging
+### Bagging
 
-### Build a bagged model and find the overall OOB error
+#### Build a bagged model and find the overall OOB error
 ```{r}
 # library(randomForest)
 set.seed(1)
@@ -193,6 +193,19 @@ cost_bag
 ```
 
 The cost of FP and FN for this single classification tree is `r cost_bag`.
+
+### Random forest (same tree as one used in Section 2)
+
+```{r}
+rf_vs2
+```
+From the above chunk, the OOB error for our random forest is 7.95 %. We also calculate the cost of FP and FN for this random forest. Since the confusion matrix here has true outcomes in the rows and predictions in the columns, we have 1241 FP and 11237 FN.
+
+```{r}
+cost_rf_vs2 <- 1241+11237
+cost_rf_vs2
+```
+Thus, the cost of FP and FN for our random forest model is `r cost_rf_vs2`.
 
 ### Measure variable importance
 
