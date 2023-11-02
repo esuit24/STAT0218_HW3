@@ -9,6 +9,8 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+# 1. Research question
+
 Research Question: 
 Analyze vehicleSearch before and after George Floyd incident
 - Use race, preRace, gender, policePrecinct, reason, problem, lat, long as a predictor variable 
@@ -23,6 +25,7 @@ Types of Trees:
 Method: 
 Predict vehicleSearch by using race, preRace, gender, case, policePrecinct, reason, problem, lat, long, and night (whether a given incident happened between 7 pm and 6 am) as a predictor variable 
 
+## load libraries and data
 ```{r}
 # import libraries
 library(lubridate)
@@ -32,13 +35,17 @@ library(rattle)
 library(rpart)
 library(ipred) # for bagging
 library(caret) # for confusion matrix
+library(randomForest) # for random forest and bagging
 
 # set a seed
 set.seed(1)
 
 # read in csv
 stop_data <- read_csv("Minneapolis_Police_Stop_Data.csv")
-  
+```
+
+## Data preparation
+```{r}
 stop_data_factored <- stop_data %>%
   na.omit() %>%
   mutate(time = as_datetime(responseDate),
@@ -55,34 +62,51 @@ stop_data_factored <- stop_data %>%
 stop_data_factored <- stop_data_factored %>%
   mutate(night = case_when(hour(time) >= 19 ~ 1,
                            hour(time) < 6 ~ 1,
-                           TRUE ~ 0))
+                           TRUE ~ 0)) %>%
+  mutate(night = factor(night))
 
-
-
-```
-
-# Data preparation
-```{r}
 gf_date <- as.Date("2020-05-26")
 stop_data_factored <- stop_data_factored %>%
   mutate(case = case_when(time <= gf_date ~ 0,
                           time > gf_date ~ 1)) %>%
   mutate(case = factor(case))
-
-# before_gf <- stop_data_factored %>%
-#   filter(case == 0) 
-# after_gf <- stop_data_factored %>%
-#   filter(case == 1)
-
-
 ```
+
+
+# 2. Answer research questions by random forest
+
+## Random Forest
+
 ```{r}
-table(stop_data_factored$race)
+library(randomForest)
+
+# The original one I showed during last session (8 predictors)
+# rf_vs <- randomForest(factor(vehicleSearch) ~ preRace + race + gender + case + policePrecinct + night + reason + problem, data = stop_data_factored, cutoff = c(0.999999, 0.000001), ntree = 500, importance = TRUE)
+# rf_vs
+
+# new tree 
+rf_vs2 <- randomForest(factor(vehicleSearch) ~ preRace + race + gender + case + policePrecinct + night + reason + problem + lat + long, data = stop_data_factored, ntree = 500, cutoff = c(0.6, 0.4), importance = TRUE)
+# 0.31315 G-Mean
+rf_vs2
+
+
+
+rf_vs3 <- randomForest(factor(vehicleSearch) ~ preRace + race + gender + case + policePrecinct + night + reason + problem + lat + long, data = stop_data_factored, cutoff = c(0.9, 0.1), ntree = 500, importance = TRUE)
+rf_vs3
+#0.57299 g-mean 
 ```
 
+## variable importance (this needs to be changed)
+```{r}
+rf_vs
+rf_vs$mtry
+rf_vs$importance
+table(stop_data_factored$race, stop_data_factored$vehicleSearch)
+```
 
-# Decision Tree
+# 3. Compare three tree-based methods (a single tree, random forest, and bagging)
 
+## Single classification tree
 ```{r}
 rows_to_keep <- sample(1:nrow(stop_data_factored),
                        size = nrow(stop_data_factored)/2)
@@ -107,34 +131,92 @@ tab
 
 ```
 
-# Random Forest
 
+## Bagging
+
+Useful link: https://bookdown.org/tpinto_home/Beyond-Additivity/bagging.html 
+
+### Build a bagged model and find the overall OOB error
 ```{r}
 library(randomForest)
+set.seed(1)
 
-# The original one I showed during last session
-rf_vs <- randomForest(factor(vehicleSearch) ~ preRace + race + gender + case + policePrecinct + night + reason + problem, data = stop_data_factored, cutoff = c(0.999999, 0.000001), ntree = 500, importance = TRUE)
-rf_vs
+p <- 10  # number of predictor variables
 
-# new tree 
-rf_vs2 <- randomForest(factor(vehicleSearch) ~ preRace + race + gender + case + policePrecinct + night + reason + problem + lat + long, data = stop_data_factored, ntree = 500, cutoff = c(0.6, 0.4), importance = TRUE)
-# 0.31315 G-Mean
-rf_vs2
+bag_veh_rf <- randomForest(factor(vehicleSearch) ~ reason + problem +
+                    + preRace + race + gender + lat + long + policePrecinct + case + night,
+                data = stop_data_factored,
+                mtry = p, # bagging is a special case of a random forest where m = p
+                importance = TRUE) 
 
-
-
-rf_vs3 <- randomForest(factor(vehicleSearch) ~ preRace + race + gender + case + policePrecinct + night + reason + problem + lat + long, data = stop_data_factored, cutoff = c(0.9, 0.1), ntree = 500, importance = TRUE)
-rf_vs3
-#0.57299 g-mean 
+bag_veh_rf
 ```
 
+### Measure variable importance
+
+Gini index: "Gini index is referred to as a measure of
+node purity—a small value indicates that a node contains predominantly
+observations from a single class." (p.336 of the text, p.344 for PDF)
+
+Mean decrease accuracy: mean difference between the classification accuracy of whole trees and that of trees that did not see the predictor variable over all classes ("YES" and "NO" in this case) (https://www.rdocumentation.org/packages/randomForest/versions/4.7-1.1/topics/randomForest)
 
 ```{r}
-rf_vs
-rf_vs$mtry
-rf_vs$importance
-table(stop_data_factored$race, stop_data_factored$vehicleSearch)
+bag_veh_rf$importance
+
+# visualize
+varImpPlot(bag_veh_rf,
+           main = "Variable importance for bagging")
 ```
+
+Answers to our research questions:
+1) Is whether a traffic stop occurred before or after the murder of George Floyd an important factor in whether the stop progressed to a vehicle search?
+
+In the above figure for variable importance, case has the second smallest mean decrease accuracy and the fifth smallest mean decrease Gini. Since the higher the Mean Decrease Accuracy and the Mean Decrease Gini are the more important the variable is, this suggests that case (whether a traffic stop occurred before or after the murder of George Floyd) is not an important factor in whether the stop progressed to a vehicle search.
+
+2) Which other factors can predict whether a stop progressed to a vehicle search? Do they suggest police bias?
+
+The above figure for variable importance show that problem, reason, and race are top three factors that increase the classification accuracy of the model the most. It also indicates that long, lat, and race are top three factors that contribute to increasing the Gini index (node heterogeneity) the most. The fact that race is in the top three for both mean decrease accuracy and mean decrease Gini indicates that it is important in predicting whether a stop progressed to a vehicle search. This means that people of certain races are more likely to get vehicle searched at a traffic stop, which implies the existence of a racial bias of police officers in Minneapolis.
+
+### Find predictor variable with the smallest mean decrease accuracy and predictor variable with the smallest mean decrease Gini
+
+```{r}
+bag_var_imp <- as.data.frame(bag_veh_rf$importance) # create a dataframe just for importance
+index_mda <- which.min(bag_var_imp[,3]) # find an index for a predictor with the smallest mean decrease accuracy
+index_mdg <- which.min(bag_var_imp[,4]) # find an index for a predictor with the smallest mean decrease Gini
+rownames(bag_var_imp)[index_mda] # get a name for a predictor with the smallest mean decrease accuracy
+rownames(bag_var_imp)[index_mdg] # get a name for a predictor with the smallest mean decrease Gini
+```
+
+### Remove the least important predictor variables found above, build a new bagged model and find the overall OOB error
+```{r}
+library(randomForest)
+set.seed(1)
+
+p <- 8  # number of predictor variables
+
+bag_veh_rf2 <- randomForest(factor(vehicleSearch) ~ reason + problem +
+                    + preRace + race + gender + lat + long + case,
+                data = stop_data_factored,
+                mtry = p, # bagging is a special case of a random forest where m = p
+                importance = TRUE) 
+
+bag_veh_rf2
+```
+
+# scraped work 
+
+### Data preparation
+```{r}
+
+# before_gf <- stop_data_factored %>%
+#   filter(case == 0) 
+# after_gf <- stop_data_factored %>%
+#   filter(case == 1)
+
+# table(stop_data_factored$race)
+```
+
+### random forest
 
 # remove less important pred vars
 ```{r}
@@ -199,78 +281,8 @@ rf1
 rf2
 ```
 
-# Bagging
 
-Useful link: https://bookdown.org/tpinto_home/Beyond-Additivity/bagging.html 
-
-## Build a bagged model and find the overall OOB error
-```{r}
-library(randomForest)
-set.seed(1)
-
-p <- 10  # number of predictor variables
-
-bag_veh_rf <- randomForest(factor(vehicleSearch) ~ reason + problem +
-                    + preRace + race + gender + lat + long + policePrecinct + case + night,
-                data = stop_data_factored,
-                mtry = p, # bagging is a special case of a random forest where m = p
-                importance = TRUE) 
-
-bag_veh_rf
-```
-
-## Measure variable importance
-
-Gini index: "Gini index is referred to as a measure of
-node purity—a small value indicates that a node contains predominantly
-observations from a single class." (p.336 of the text, p.344 for PDF)
-
-Mean decrease accuracy: mean difference between the classification accuracy of whole trees and that of trees that did not see the predictor variable over all classes ("YES" and "NO" in this case) (https://www.rdocumentation.org/packages/randomForest/versions/4.7-1.1/topics/randomForest)
-
-```{r}
-bag_veh_rf$importance
-
-# visualize
-varImpPlot(bag_veh_rf,
-           main = "Variable importance for bagging")
-```
-
-Answers to our research questions:
-1) Is whether a traffic stop occurred before or after the murder of George Floyd an important factor in whether the stop progressed to a vehicle search?
-
-In the above figure for variable importance, case has the second smallest mean decrease accuracy and the fifth smallest mean decrease Gini. Since the higher the Mean Decrease Accuracy and the Mean Decrease Gini are the more important the variable is, this suggests that case (whether a traffic stop occurred before or after the murder of George Floyd) is not an important factor in whether the stop progressed to a vehicle search.
-
-2) Which other factors can predict whether a stop progressed to a vehicle search? Do they suggest police bias?
-
-The above figure for variable importance show that problem, reason, and race are top three factors that increase the classification accuracy of the model the most. It also indicates that long, lat, and race are top three factors that contribute to increasing the Gini index (node heterogeneity) the most. The fact that race is in the top three for both mean decrease accuracy and mean decrease Gini indicates that it is important in predicting whether a stop progressed to a vehicle search. This means that people of certain races are more likely to get vehicle searched at a traffic stop, which implies the existence of a racial bias of police officers in Minneapolis.
-
-## Find predictor variable with the smallest mean decrease accuracy and predictor variable with the smallest mean decrease Gini
-
-```{r}
-bag_var_imp <- as.data.frame(bag_veh_rf$importance) # create a dataframe just for importance
-index_mda <- which.min(bag_var_imp[,3]) # find an index for a predictor with the smallest mean decrease accuracy
-index_mdg <- which.min(bag_var_imp[,4]) # find an index for a predictor with the smallest mean decrease Gini
-rownames(bag_var_imp)[index_mda] # get a name for a predictor with the smallest mean decrease accuracy
-rownames(bag_var_imp)[index_mdg] # get a name for a predictor with the smallest mean decrease Gini
-```
-
-## Remove the least important predictor variables found above, build a new bagged model and find the overall OOB error
-```{r}
-library(randomForest)
-set.seed(1)
-
-p <- 8  # number of predictor variables
-
-bag_veh_rf2 <- randomForest(factor(vehicleSearch) ~ reason + problem +
-                    + preRace + race + gender + lat + long + case,
-                data = stop_data_factored,
-                mtry = p, # bagging is a special case of a random forest where m = p
-                importance = TRUE) 
-
-bag_veh_rf2
-```
-
-# Boosting
+### Boosting
 
 ```{r}
 library(xgboost)
