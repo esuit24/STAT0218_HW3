@@ -91,17 +91,9 @@ rf_vs2
 
 
 
-rf_vs3 <- randomForest(factor(vehicleSearch) ~ preRace + race + gender + case + policePrecinct + night + reason + problem + lat + long, data = stop_data_factored, cutoff = c(0.9, 0.1), ntree = 500, importance = TRUE)
-rf_vs3
+# rf_vs3 <- randomForest(factor(vehicleSearch) ~ preRace + race + gender + case + policePrecinct + night + reason + problem + lat + long, data = stop_data_factored, cutoff = c(0.9, 0.1), ntree = 500, importance = TRUE)
+# rf_vs3
 #0.57299 g-mean 
-```
-
-## variable importance (this needs to be changed)
-```{r}
-rf_vs
-rf_vs$mtry
-rf_vs$importance
-table(stop_data_factored$race, stop_data_factored$vehicleSearch)
 ```
 
 # 3. Compare three tree-based methods (a single tree, random forest, and bagging)
@@ -207,7 +199,7 @@ cost_rf_vs2
 ```
 Thus, the cost of FP and FN for our random forest model is `r cost_rf_vs2`.
 
-Overall, the order of the OOB error from the lowest to the highest is the single tree, random forest, and bagging. Likewise, the order of the cost of FP and FN from the lowest to the highest is the single tree, random forest, and bagging. Although these result indicate that the single classification tree predicts the variable "vehicleSearch" most accurately, a single decision tree has is more disadvantageous than bagging and random forest in terms of variance.
+Overall, the order of the OOB error from the lowest to the highest is the single tree, random forest, and bagging. Likewise, the order of the cost of FP and FN from the lowest to the highest is the single tree, random forest, and bagging. Although these results indicate that the single classification tree predicts the variable "vehicleSearch" most accurately, a single decision tree is usually more disadvantageous than bagging and random forest in terms of variance.
 
 ## 3.2 Comparison of variance
 
@@ -243,6 +235,14 @@ varImpPlot(rf_vs2,
 ```
 
 # scraped work 
+
+## variable importance (this needs to be changed)
+```{r}
+rf_vs
+rf_vs$mtry
+rf_vs$importance
+table(stop_data_factored$race, stop_data_factored$vehicleSearch)
+```
 
 ### Data preparation
 ```{r}
