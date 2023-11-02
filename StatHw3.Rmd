@@ -213,55 +213,33 @@ Overall, the order of the OOB error from the lowest to the highest is the single
 
 A single decision tree tends to have a higher variance than bagging and random forest. In a single decision tree, we only have one tree to assess error on, while in the bagging and random forest methods, we can make predictions on a given observation based on a third of the ensemble of decision trees, often a quantity much greater than 1. As a result, there will be more variance in the single decision tree’s prediction and hence errors so it will be more difficult to determine classification and overall testing errors for a normal decision tree with high certainty. Conversely, because the random forest and bagging methods rely on a large ensemble of trees, we can reduce the uncertainty associated with the model because the uncertainty will decline as more trees provide input on the prediction. This leads to lower variance in predictions in these models. 
 
-### Measure variable importance
+## 3.3 Comparison of variable importance
 
-Gini index: "Gini index is referred to as a measure of
-node purity—a small value indicates that a node contains predominantly
-observations from a single class." (p.336 of the text, p.344 for PDF)
+## Single tree
+```{r}
+fancyRpartPlot(tree1,
+               cex = .4,
+               main = "Single classification tree for vehicle search")
+```
 
-Mean decrease accuracy: mean difference between the classification accuracy of whole trees and that of trees that did not see the predictor variable over all classes ("YES" and "NO" in this case) (https://www.rdocumentation.org/packages/randomForest/versions/4.7-1.1/topics/randomForest)
+### Bagging
 
 ```{r}
-bag_veh_rf$importance
+# bag_veh_rf$importance
 
 # visualize
 varImpPlot(bag_veh_rf,
            main = "Variable importance for bagging")
 ```
 
-Answers to our research questions:
-1) Is whether a traffic stop occurred before or after the murder of George Floyd an important factor in whether the stop progressed to a vehicle search?
 
-In the above figure for variable importance, case has the second smallest mean decrease accuracy and the fifth smallest mean decrease Gini. Since the higher the Mean Decrease Accuracy and the Mean Decrease Gini are the more important the variable is, this suggests that case (whether a traffic stop occurred before or after the murder of George Floyd) is not an important factor in whether the stop progressed to a vehicle search.
-
-2) Which other factors can predict whether a stop progressed to a vehicle search? Do they suggest police bias?
-
-The above figure for variable importance show that problem, reason, and race are top three factors that increase the classification accuracy of the model the most. It also indicates that long, lat, and race are top three factors that contribute to increasing the Gini index (node heterogeneity) the most. The fact that race is in the top three for both mean decrease accuracy and mean decrease Gini indicates that it is important in predicting whether a stop progressed to a vehicle search. This means that people of certain races are more likely to get vehicle searched at a traffic stop, which implies the existence of a racial bias of police officers in Minneapolis.
-
-### Find predictor variable with the smallest mean decrease accuracy and predictor variable with the smallest mean decrease Gini
-
+### Random forest
 ```{r}
-bag_var_imp <- as.data.frame(bag_veh_rf$importance) # create a dataframe just for importance
-index_mda <- which.min(bag_var_imp[,3]) # find an index for a predictor with the smallest mean decrease accuracy
-index_mdg <- which.min(bag_var_imp[,4]) # find an index for a predictor with the smallest mean decrease Gini
-rownames(bag_var_imp)[index_mda] # get a name for a predictor with the smallest mean decrease accuracy
-rownames(bag_var_imp)[index_mdg] # get a name for a predictor with the smallest mean decrease Gini
-```
+# rf_vs2$importance
 
-### Remove the least important predictor variables found above, build a new bagged model and find the overall OOB error
-```{r}
-library(randomForest)
-set.seed(1)
-
-p <- 8  # number of predictor variables
-
-bag_veh_rf2 <- randomForest(factor(vehicleSearch) ~ reason + problem +
-                    + preRace + race + gender + lat + long + case,
-                data = stop_data_factored,
-                mtry = p, # bagging is a special case of a random forest where m = p
-                importance = TRUE) 
-
-bag_veh_rf2
+# visualize
+varImpPlot(rf_vs2,
+           main = "Variable importance for random forest")
 ```
 
 # scraped work 
