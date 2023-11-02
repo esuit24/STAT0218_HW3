@@ -209,6 +209,7 @@ A single decision tree tends to have a higher variance than bagging and random f
 
 ## Single tree
 ```{r}
+tree1 # to see all nodes
 fancyRpartPlot(tree1,
                cex = .4,
                main = "Single classification tree for vehicle search")
