@@ -156,13 +156,13 @@ prop_yes <- prop[2,3]
 class_err_no <- 367/prop[1,2]
 class_err_yes <- 5831/prop[2,2]
 
-oob_tree1 <- class_err_no*prop_no + class_err_yes*prop_yes
+oob_tree1 <- (class_err_no*prop_no + class_err_yes*prop_yes)*100
 oob_tree1
 ```
-Thus, the OOB error for this single classification tree is approximately `r oob_tree1*100`%. Next, calculate the cost of FP and FN for this tree.
+Thus, the OOB error for this single classification tree is approximately `r oob_tree1`%. Next, calculate the cost of FP and FN for this tree. Since the size of the test data is half of the original data, to compare the cost of FP and FN with that of bagging and random forest (both of which use the whole data for their confusion matrices), we multiply 2 with the cost of FP and FN of this single tree. 
 
 ```{r}
-cost_tree1 <- 5831 + 367
+cost_tree1 <- (5831 + 367)*2
 cost_tree1
 ```
 The cost of FP and FN for this single classification tree is `r cost_tree1`.
@@ -206,6 +206,12 @@ cost_rf_vs2 <- 1241+11237
 cost_rf_vs2
 ```
 Thus, the cost of FP and FN for our random forest model is `r cost_rf_vs2`.
+
+Overall, the order of the OOB error from the lowest to the highest is the single tree, random forest, and bagging. Likewise, the order of the cost of FP and FN from the lowest to the highest is the single tree, random forest, and bagging. Although these result indicate that the single classification tree predicts the variable "vehicleSearch" most accurately, a single decision tree has is more disadvantageous than bagging and random forest in terms of variance.
+
+## 3.2 Comparison of variance
+
+A single decision tree tends to have a higher variance than bagging and random forest. In a single decision tree, we only have one tree to assess error on, while in the bagging and random forest methods, we can make predictions on a given observation based on a third of the ensemble of decision trees, often a quantity much greater than 1. As a result, there will be more variance in the single decision tree’s prediction and hence errors so it will be more difficult to determine classification and overall testing errors for a normal decision tree with high certainty. Conversely, because the random forest and bagging methods rely on a large ensemble of trees, we can reduce the uncertainty associated with the model because the uncertainty will decline as more trees provide input on the prediction. This leads to lower variance in predictions in these models. 
 
 ### Measure variable importance
 
