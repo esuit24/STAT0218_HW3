@@ -106,29 +106,39 @@ table(stop_data_factored$race, stop_data_factored$vehicleSearch)
 
 # 3. Compare three tree-based methods (a single tree, random forest, and bagging)
 
-## Single classification tree
+## 3.1. Comparison of classification error rate
+
+### Single classification tree
 ```{r}
+set.seed(1)
+# Split data into train and test
 rows_to_keep <- sample(1:nrow(stop_data_factored),
                        size = nrow(stop_data_factored)/2)
 train <- stop_data_factored[rows_to_keep,]
 test <- stop_data_factored[-rows_to_keep,]
+
+# build a single classification tree
 tree1 <- rpart(factor(vehicleSearch) ~ race + gender + policePrecinct + reason + problem + case + lat + long + preRace + night, 
                control = rpart.control(cp=0.00098),
               data = train)
+
+# Visualize the tree
+fancyRpartPlot(tree1,
+               cex = .4,
+               main = "Single classification tree for vehicle search")
+
+# make predictions on test data using the classification tree
 test_input <- test %>%
   select(race, gender, policePrecinct, reason, problem, case, lat, long, preRace, night)
 preds <- predict(tree1, test_input)
-#TODO: why does this not work for a binary variable vehicleSearch? 
-fancyRpartPlot(tree1,
-               cex = .4)
-preds <- as.data.frame(preds)
 
+# print confusion matrix for predictions and true outcomes of test data
+preds <- as.data.frame(preds)
 preds_clean <- preds %>%
   mutate(v_s = case_when(YES < 0.5 ~ 0,
                          TRUE ~ 1)) 
 tab <- table(preds_clean$v_s, test$vehicleSearch)
 tab 
-
 ```
 
 
