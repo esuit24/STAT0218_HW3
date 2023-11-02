@@ -106,7 +106,7 @@ table(stop_data_factored$race, stop_data_factored$vehicleSearch)
 
 # 3. Compare three tree-based methods (a single tree, random forest, and bagging)
 
-## 3.1. Comparison of classification error rate
+## 3.1. Comparison of OOB error and cost of FP and FN
 
 ### Single classification tree
 ```{r}
@@ -137,9 +137,36 @@ preds <- as.data.frame(preds)
 preds_clean <- preds %>%
   mutate(v_s = case_when(YES < 0.5 ~ 0,
                          TRUE ~ 1)) 
+
 tab <- table(preds_clean$v_s, test$vehicleSearch)
-tab 
+tab
 ```
+Since the above confusion matrix has predictions for rows and true outcomes fo columns, the number of FN is 5831 and the number of FP is 367.
+
+```{r}
+# OOB error for the single classification tree
+
+## find true proportions of NO and YES in test data to compute OOB error
+prop <- test %>%
+  count(vehicleSearch) %>%
+  mutate(prop = n / sum(n))
+prop_no <- prop[1,3]
+prop_yes <- prop[2,3]
+
+class_err_no <- 367/prop[1,2]
+class_err_yes <- 5831/prop[2,2]
+
+oob_tree1 <- class_err_no*prop_no + class_err_yes*prop_yes
+oob_tree1
+```
+Thus, the OOB error for this single classification tree is approximately `r oob_tree1*100`%. Next, calculate the cost of FP and FN for this tree.
+
+```{r}
+cost_tree1 <- 5831 + 367
+cost_tree1
+```
+The cost of FP and FN for this single classification tree is `r cost_tree1`.
+
 
 
 ## Bagging
