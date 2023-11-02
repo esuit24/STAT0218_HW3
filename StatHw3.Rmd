@@ -117,7 +117,7 @@ tree1 <- rpart(factor(vehicleSearch) ~ race + gender + policePrecinct + reason +
 # Visualize the tree
 fancyRpartPlot(tree1,
                cex = .4,
-               main = "Single classification tree for vehicle search")
+               main = "Fig 1. Single classification tree for vehicle search")
 
 # make predictions on test data using the classification tree
 test_input <- test %>%
@@ -212,7 +212,7 @@ A single decision tree tends to have a higher variance than bagging and random f
 tree1 # to see all nodes
 fancyRpartPlot(tree1,
                cex = .4,
-               main = "Single classification tree for vehicle search")
+               main = "Fig 1. Single classification tree for vehicle search")
 ```
 
 ### Bagging
@@ -222,7 +222,7 @@ fancyRpartPlot(tree1,
 
 # visualize
 varImpPlot(bag_veh_rf,
-           main = "Variable importance for bagging")
+           main = "Fig 2. Variable importance for bagging")
 ```
 
 
@@ -232,7 +232,7 @@ varImpPlot(bag_veh_rf,
 
 # visualize
 varImpPlot(rf_vs2,
-           main = "Variable importance for random forest")
+           main = "Fig 3. Variable importance for random forest")
 ```
 
 # scraped work 
