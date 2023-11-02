@@ -1,7 +1,7 @@
 ---
 title: "Stat_Hw3"
 author: "Ellie Suit, Andy Atallah, and Ai Hattori"
-date: "2023-10-27"
+date: "2023-11-2"
 output: html_document
 ---
 
