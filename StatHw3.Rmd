@@ -167,15 +167,11 @@ cost_tree1
 ```
 The cost of FP and FN for this single classification tree is `r cost_tree1`.
 
-
-
 ## Bagging
-
-Useful link: https://bookdown.org/tpinto_home/Beyond-Additivity/bagging.html 
 
 ### Build a bagged model and find the overall OOB error
 ```{r}
-library(randomForest)
+# library(randomForest)
 set.seed(1)
 
 p <- 10  # number of predictor variables
@@ -188,6 +184,15 @@ bag_veh_rf <- randomForest(factor(vehicleSearch) ~ reason + problem +
 
 bag_veh_rf
 ```
+
+From the above chunk, the OOB error for our bagged model is 9.21 %. Next, calculate the cost of FP and FN for this bagged model. Since the confusion matrix here has true outcomes in the rows and predictions in the columns, we have 3914 FP and 10552 FN.
+
+```{r}
+cost_bag <- 3914 + 10552
+cost_bag
+```
+
+The cost of FP and FN for this single classification tree is `r cost_bag`.
 
 ### Measure variable importance
 
