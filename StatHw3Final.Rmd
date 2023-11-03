@@ -18,7 +18,7 @@ To assess the temporal component of our question, we gauged how to split the dat
 As mentioned above, we are also interested in using variables which already exist within the data set, such as personal characteristics, as other predictors. The exact set of variables used in each model may be slightly different due to the tuning process, but in all cases we are particularly interested in gauging whether the variable “race” is considered important. As MPD officers record the race of the person involved in the traffic stop after the stop occurs, we believe it could be indicative of racial bias if models consider this variable an important predictor for a vehicle search, an event that happens while a stop is in progress (Prof. Lyford, personal communication, 10/30/2023). We could thus say another research question of ours is whether the models we produce suggest racial bias in who the MPD subjected to vehicle searches. We also remain interested in other variables – other questions could be whether MPD officers were biased in regards to gender when choosing to conduct vehicle searches or whether the police precinct is a useful predictor of which traffic stops had vehicle searches.
 
 ## Load libraries and data
-```{r, warning = FALSE}
+```{r, warning = FALSE, message = FALSE}
 # import libraries
 library(lubridate)
 library(tidyverse)
