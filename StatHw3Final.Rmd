@@ -1,0 +1,287 @@
+---
+title: "Stat_Hw3"
+author: "Ellie Suit, Andy Atallah, and Ai Hattori"
+date: "2023-11-2"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. Research questions
+
+One of our main research questions asks whether the timing of traffic stops by Minneapolis Police Department officers relative to the murder of George Floyd is an important factor in whether the stops progressed to a vehicle search. Conceptually, we view a vehicle search as an escalation of police behavior which does not occur in every instance of a traffic stop – in fact, only about 8% of observations in the data set represent stops where an officer searched a person’s vehicle.
+
+To assess the temporal component of our question, we gauged how to split the data set into a time before and after the murder of George Floyd, which we discussed in class as being a critical time for the perception of the MPD as a racially biased organization. We do not believe that the murder itself is an observation in this data set because we do not see the master incident number as reported in an article on the subject (Axios 2021)[https://www.axios.com/local/twin-cities/2021/04/21/minneapolis-police-george-floyd-press-release]. We therefore decided to view all observations which occur on or after May 26, 2020 as occurring after the murder, and we created a binary variable – which we called “case” – to classify observations as happening before or after this point. If this variable proved to be an important factor in statistical learning models, it would signal that the timing of traffic stops with respect to this murder is considered useful by the models (relative to other included variables) for the goal of predicting during which observations vehicle searches occurred. A topic in which we are also interested which is related to this point is whether the MPD’s behavior during traffic stops changed based on temporal relation to the murder. If “case” is not seen to be a relevant variable, this may suggest that the model does not support the idea that this kind of change occurred.
+
+As mentioned above, we are also interested in using variables which already exist within the data set, such as personal characteristics, as other predictors. The exact set of variables used in each model may be slightly different due to the tuning process, but in all cases we are particularly interested in gauging whether the variable “race” is considered important. As MPD officers record the race of the person involved in the traffic stop after the stop occurs, we believe it could be indicative of racial bias if models consider this variable an important predictor for a vehicle search, an event that happens while a stop is in progress (Prof. Lyford, personal communication, 10/30/2023). We could thus say another research question of ours is whether the models we produce suggest racial bias in who the MPD subjected to vehicle searches. We also remain interested in other variables – other questions could be whether MPD officers were biased in regards to gender when choosing to conduct vehicle searches or whether the police precinct is a useful predictor of which traffic stops had vehicle searches.
+
+## Load libraries and data
+```{r}
+# import libraries
+library(lubridate)
+library(tidyverse)
+library(rattle) # decision tree
+library(rpart) # decision tree
+library(ipred) # Bagging
+library(caret) # Confusion matrix
+library(randomForest) # for random forest and bagging
+
+# set a seed
+set.seed(1)
+
+# read in csv
+stop_data <- read_csv("Minneapolis_Police_Stop_Data.csv")
+```
+
+## Data preparation
+In this step, we are factoring appropriate variables for use in our models and removing NAs. We also create two variables; as discussed above, we wish to gauge whether the temporal relation to the murder of George Floyd has bearing on any of the models' predictions. We also create a variable to check whether a stop occurred at night, since we feel this could have potential for influencing vehicle searches. We call these variables "case" and "night" respectively, and we factor them both.
+```{r}
+# Factor variables and remove NAs
+stop_data_factored <- stop_data %>%
+  na.omit() %>%
+  mutate(time = as_datetime(responseDate),
+         reason = factor(reason),
+         problem = factor(problem),
+         citationIssued = factor(citationIssued),
+         personSearch = factor(personSearch),
+         vehicleSearch = factor(vehicleSearch),
+         preRace = factor(preRace),
+         race = factor(race),
+         gender = factor(gender),
+         policePrecinct = factor(policePrecinct))
+
+# Create date threshold
+gf_date <- as.Date("2020-05-26")
+
+# Create "case" variable in relation to murder of George Floyd
+stop_data_factored <- stop_data_factored %>%
+  mutate(case = case_when(time <= gf_date ~ 0,
+                          time > gf_date ~ 1)) %>%
+  mutate(case = factor(case))
+
+# Create a variable based on whether a stop happened at night (7:00 PM - 6:00 AM)
+stop_data_factored <- stop_data_factored %>%
+  mutate(night = case_when(hour(time) >= 19 ~ 1,
+                           hour(time) < 6 ~ 1,
+                           TRUE ~ 0)) %>%
+  mutate(night = factor(night))
+```
+
+
+# 2. Answer research questions with chosen model
+
+## Background information on decision trees
+To answer these research questions with a statistical learning model, the general idea is to use our existing dataset to facilitate predictions for new data. To use one of such models, we  supply a variable which we want to predict as well as a set of variables which the model will use as data. The variable we are interested in predicting is a binary variable (with two distinct classes) called “vehicleSearch”. Each observation/row in the data set corresponds to a different traffic stop, and in some of these cases, an MPD officer chose to search the car of the person who they stopped. We have removed N/A values so that the variable only has “yes” or “no” values, which will make it simpler to work with. The other variables, also called predictors, can vary. We previously stated that we are interested in using our own variable, “case”, which we calculated based on the time associated with each traffic stop. However, we also want to predict based on the variable “race”, and it would be similarly compelling to include “gender”, “policePrecinct”, or still others. When setting up these models, it is fortunate that we are able to add a large set of variables as predictors. If a variable is included, the model will take all observations in that column of the input dataset as input data. 
+
+The particular type of model which we are using for this report is called a tree-based method. This name comes from a decision tree, a model which is the basis of several advanced statistical learning methods. Decision trees, which may look somewhat like a flowchart when visualized, aim to separate the input data into different regions based on the variables which we have added. A given decision tree comes with a set of rules which can be used to predict in which region a new observation may fall. Each tree begins at the root, which can be understood as the entire input dataset. As the tree grows deeper, it eventually splits into smaller regions based on the input predictors. Splits are binary and separate the data based on key values or classes of the input variables – for example, a hypothetical split might be whether the police precinct number is 1. In the case of this report, where we are trying to predict the class of a binary variable, a given decision tree is called a classification tree. The regions which are created when the tree has finished dividing up the data supply us with a predicted class for our variable of interest, vehicleSearch, based on the most common class of the input observations in the region (Textbook 8.1.2). Decision trees can be helpful for deciding which of the input variables are important; if a split involves a given variable, this predictor is being meaningfully used by the model to separate our data.
+
+While a decision tree could be useful for interpreting our questions due to the fact that it telegraphs variable importance, using a single classification tree to make predictions may not be the most appropriate method. We also have the option to use more advanced methods which use many decision trees to make predictions. Choosing one of these methods is likely to be less prone to variability, for there are multiple trees being used. One such method is called a random forest (as in a group of decision trees), and we found it to help us answer our research questions.
+
+## Our tree-based method: random forest
+As discussed above, the model we are trying to produce intends to detect (or demonstrate the absence of) police bias during a traffic stop. In particular, we are most interested in learning about if race is an important factor in an officer’s decision to search an individual’s vehicle. As a result, this model strives to distinguish between cases where a vehicle does not get searched and cases where the vehicle does. If race is an important variable in a given model, this indicates that the decision to search a vehicle is influenced by a person’s race and hence that racial bias is present in the policing system. 
+
+The tree based models used in our analysis answer these questions, as trees will split based on variables that it deems the most significant when splitting up the data. In the case of the regular decision tree, the algorithm determines which variables make splits that best separate the data into like groups and the variable(s) that the tree “decides” to split on when grouping the data are the variables that are most significant in predictions. Tree ensemble algorithms (random forest and bagging for example) expand upon a single decision tree by creating an ensemble of decision trees each making predictions on ~⅔ of the total observations. This method allows for a smaller variance by adding more trees and hence reducing the uncertainty in predictions made from a single tree. In the case of a random forest, since each tree only sees a random subset of the total number of variables, the trees do not have the entire data set to choose from. However, we can still assess the importance of a given variable by analyzing how well a random forest model performs without the given variable how much or how well such a variable splits the groups. We quantify these values using metrics called the mean decrease in accuracy and the Gini index respectfully. The case where each tree in a random forest can have access to all the desired prediction variables is called bootstrap aggregating (“bagging”). Using bagging, we can assess variable importance in the same manner and hence determine if race is an important predictor variable in predicting vehicle searches. 
+
+Upon implementing these three algorithms, we determined that the random forest approach yielded the best results in terms of the total number of false predictions and the out of bag error. On a base level, the algorithm predicts whether or not a vehicle was searched based on the following variables:
+- Problem: the reported problem associated with the traffic stop
+- Reason: the reported reason for pulling over the individual
+- preRace: the assumed race before the stop occurred
+- Race: the race that the officer reports of the individual after the interaction is concluded
+- Gender: the gender of the stopped person
+- Lat: the lattitude where the stop occurred
+- Long: the longitude where the stop occurred 
+- PolicePrecinct: the precinct that made the stop 
+- Night: binary variable of whether (1) or not (0) the stop was made between the hours of 7pm-6am 
+- Case: binary variable of whether the stop was made before (0) or after (1) George Floyd.
+
+```{r}
+# Random forest function with tuning parameters
+rf_vs2 <- randomForest(factor(vehicleSearch) ~ preRace + race + gender + case + policePrecinct + night + reason + problem + lat + long, data = stop_data_factored, ntree = 500, cutoff = c(0.6, 0.4), importance = TRUE)
+
+# 0.31315 G-Mean
+rf_vs2
+```
+
+From adjusting the number of trees and number of random variables available to the algorithm at a given split, we were able to optimize the algorithm’s classification and out of bag accuracy. As we will demonstrate below, the algorithm produced an OOB of 7.94% with race being one of the three most influential variables in achieving this accuracy. As a result, we claim that race is a factor in determining whether a vehicle gets searched and our model demonstrates that police bias is undoubtedly present in traffic stops. By the same argument, we claim that our case variable, and by extension the temporal relation of the traffic stops to the murder of George Floyd, was not a very important variable for predicting vehicle searches.
+
+## Where the model could be used in the future
+This model is built upon past MPD traffic stops. If a non-profit organization wishes to investigate MPD racial bias, it could look at the model for any evidence that statistical learning models suggest this bias. Additionally, provided that future traffic stops are recorded alongside similar variables, future users could build a model with the same predictors we used and train/test on entirely new data to see if there are still suggestions of bias. The case variable would not be able to be tested if only new data were used, so future observations could be joined with the existing data to evaluate whether there is still limited evidence of change in MPD officers' decision-making when escalating to a traffic stop after the murder of George Floyd.
+
+# 3. Compare three tree-based methods (a single classification tree, random forest, and bagging)
+
+To evaluate our algorithms, we used a combination of out-of-bag (OOB) error, a cost of false positives (FP) and false negatives (FN), and variance. 
+
+## 3.1. Comparison of OOB error and cost of FP and FN
+The OOB error value provides insight on how well the model will perform on future data. Because the calculation of OOB is done by making predictions on a certain observation based on trees that did not see that variable, this error is a valid representation of how the model might work on future data not present in the existing dataset. This method is built into both the bagging and random forest methods, where an ensemble of trees make predictions on the data and each tree does not see the entire dataset. Because the normal decision tree method consists of a single tree (not an ensemble), to assess how well the algorithm might perform on future data, we split the given dataset into training and testing sets to use to build and validate the data respectfully. This method will allow us to determine how well the decision tree will generalize.
+
+In addition to the OOB error, we also used a cost of FP and FN because we assumed that the cost of FP was equal to the cost of FN but the OOB error did not reflect that assumption. OOB error is computed as the weighted average of the classification error, which are in this case the classification error for “NO” and “YES.” Recall that the randomForest function prints a confusion matrix as below (TN is true negatives and TP is true positives).
+
++---------------+---------------+---------------+---------------+
+|               |               |Predictions                    |
++---------------+---------------+---------------+---------------+
+|               |               | NO            |YES            |
++===============+===============+===============+===============+
+|True outcomes  | NO            |TN             |FP             |
+|               |               |               |               |
++               +---------------+---------------+---------------+
+|               | YES           |FN             |TP             |
+|               |               |               |               |
++---------------+---------------+---------------+---------------+
+
+Thus, OOB error is equal to $\frac{FP}{TN+FP}\times\text{true proportion of NO in data} + \frac{FN}{FN+TP}\times\text{true proportion of YES in data}$. Since about 92 % of observations in the original data has “NO” for vehicle search, the OOB error in this case is $\frac{FP}{TN+FP} \times 0.92 + \frac{FN}{FN+TP} \times 0.08$. Thus, the OOB error puts a substantially higher weight on the classification error for “NO” than that for “YES.” Using only this OOB error as an accuracy measure would not be a problem if we assumed that the cost of FP was considerably higher than that of FN. However, we believe that costs of FP and FN are equal in this homework. This is because our goal is to understand the relationship between a vehicle search and predictor variables as accurately as possible and a false prediction (either a FP or FN) affects this goal negatively. For this reason, we assigned a cost of 1 to each FP or FN and used the total cost of FP and FN as a metric to compare the efficacy of the three tree-based methods.
+
+### Single classification tree
+
+```{r}
+set.seed(1)
+# Split data into train and test
+rows_to_keep <- sample(1:nrow(stop_data_factored),
+                       size = nrow(stop_data_factored)/2)
+train <- stop_data_factored[rows_to_keep,]
+test <- stop_data_factored[-rows_to_keep,]
+
+# build a single classification tree
+tree1 <- rpart(factor(vehicleSearch) ~ race + gender + policePrecinct + reason + problem + case + lat + long + preRace + night, 
+               control = rpart.control(cp=0.00098),
+              data = train)
+
+# Visualize the tree
+fancyRpartPlot(tree1,
+               cex = .4,
+               main = "Fig 1. Single classification tree for vehicle search")
+
+# make predictions on test data using the classification tree
+test_input <- test %>%
+  select(race, gender, policePrecinct, reason, problem, case, lat, long, preRace, night)
+preds <- predict(tree1, test_input)
+
+# print confusion matrix for predictions and true outcomes of test data
+preds <- as.data.frame(preds)
+preds_clean <- preds %>%
+  mutate(v_s = case_when(YES < 0.5 ~ 0,
+                         TRUE ~ 1)) 
+
+tab <- table(preds_clean$v_s, test$vehicleSearch)
+tab
+```
+
+Since the above confusion matrix has predictions for rows and true outcomes for columns, the number of FN is 5831 and the number of FP is 367.
+
+```{r}
+# OOB error for the single classification tree
+
+## find true proportions of NO and YES in test data to compute OOB error
+prop <- test %>%
+  count(vehicleSearch) %>%
+  mutate(prop = n / sum(n))
+prop_no <- prop[1,3]
+prop_yes <- prop[2,3]
+
+class_err_no <- 367/prop[1,2]
+class_err_yes <- 5831/prop[2,2]
+
+oob_tree1 <- (class_err_no*prop_no + class_err_yes*prop_yes)*100
+oob_tree1
+```
+
+Thus, the OOB error for this single classification tree is approximately `r oob_tree1`%. Next, calculate the cost of FP and FN for this tree.
+
+```{r}
+cost_tree1 <- (5831 + 367)*2
+cost_tree1
+```
+
+The cost of FP and FN for this single classification tree is `r cost_tree1`.
+
+### Bagging
+
+#### Build a bagged model and find the overall OOB error
+```{r}
+# library(randomForest)
+set.seed(1)
+
+p <- 10  # number of predictor variables
+
+bag_veh_rf <- randomForest(factor(vehicleSearch) ~ reason + problem +
+                    + preRace + race + gender + lat + long + policePrecinct + case + night,
+                data = stop_data_factored,
+                mtry = p, # bagging is a special case of a random forest where m = p
+                importance = TRUE) 
+
+bag_veh_rf
+```
+
+From the above chunk, the OOB error for our bagged model is 9.21 %. Next, calculate the cost of FP and FN for this bagged model. Since the confusion matrix here has true outcomes in the rows and predictions in the columns, we have 3914 FP and 10552 FN.
+
+```{r}
+cost_bag <- 3914 + 10552
+cost_bag
+```
+
+The cost of FP and FN for this single classification tree is `r cost_bag`.
+
+### Random forest (same model as the one used in Section 2)
+
+```{r}
+rf_vs2
+```
+From the above chunk, the OOB error for our random forest is 7.95 %. We also calculate the cost of FP and FN for this random forest. Since the confusion matrix here has true outcomes in the rows and predictions in the columns, we have 1241 FP and 11237 FN.
+
+```{r}
+cost_rf_vs2 <- 1241+11237
+cost_rf_vs2
+```
+Thus, the cost of FP and FN for our random forest model is `r cost_rf_vs2`.
+
+Overall, the order of the OOB error from the lowest to the highest is the single tree, random forest, and bagging. Likewise, the order of the cost of FP and FN from the lowest to the highest is the single tree, random forest, and bagging. Although these results indicate that the single classification tree predicts the variable "vehicleSearch" most accurately, a single decision tree is usually more disadvantageous than bagging and random forest in terms of variance.
+
+## 3.2 Comparison of variance
+
+A single decision tree tends to have a higher variance than bagging and random forest. In a single decision tree, we only have one tree to assess error on, while in the bagging and random forest methods, we can make predictions on a given observation based on a third of the ensemble of decision trees, often a quantity much greater than 1. As a result, there will be more variance in the single decision tree’s prediction and hence errors so it will be more difficult to determine classification and overall testing errors for a normal decision tree with high certainty. Conversely, because the random forest and bagging methods rely on a large ensemble of trees, we can reduce the uncertainty associated with the model because the uncertainty will decline as more trees provide input on the prediction. This leads to lower variance in predictions in these models. 
+
+## 3.3 (3b) Comparison of variable importance
+
+## Single tree
+Since the root node (the first node) of a decision tree is generally the predictor variable with the highest accuracy, our single classification tree suggests that whether or not an individual is Black or Native American is the most important factor in predicting a vehicle search. Particularly, our single classification tree indicates that the probability of a vehicle search for an individual who is Black or Native American (around 15%) is more than three times higher than that for an individual of other races (around 4%).
+
+This tree could be seen as somewhat deep and complex. To be able to visualize the tree, we tuned the complexity parameter to be the highest value which would still produce a tree with more than just the root. We likely had initial difficulties with visualizing this tree due to the high class imbalance of the vehicleSearch variable. The tree actually used most variables, including problem, reason, policePrecinct, gender, preRace, case, and long. This may suggest that all variables on which the tree split may have some level of importance, but we still argue that race appearing first is significant and can be interpreted in the context of our research question.
+
+```{r}
+tree1 # to see all nodes
+fancyRpartPlot(tree1,
+               cex = .4,
+               main = "Fig 1. Single classification tree for vehicle search")
+```
+
+### Bagging
+Unlike a single tree, bagging does not allow us to use a decision tree to determine what predictors have the most importance in predicting a vehicle search. One way to overcome this issue is to use metrics called mean decrease accuracy and mean decrease Gini. A mean decrease in accuracy is a mean difference between the classification accuracy of whole trees and that of trees that did not see the predictor variable over all classes ("YES" and "NO" in this case) (Prof. Lyford, class lecture, 10/27/2023). A mean decrease in Gini is a mean difference between the Gini index of whole trees and that of trees that did not see the predictor variable over all classes. The Gini index measures node purity, and a small Gini index means that a node has a majority of observations from a single class, according to page 336 of the textbook. 
+
+```{r}
+# bag_veh_rf$importance
+
+# visualize
+varImpPlot(bag_veh_rf,
+           main = "Fig 2. Variable importance for bagging")
+```
+
+Fig. 2 shows that problem, reason, and race are the top three factors that increase the classification accuracy the most. It also indicates that long, lat, and race are the top three factors that contribute to increasing the Gini index (node heterogeneity) the most. The fact that race is in the top three for both mean decrease accuracy and mean decrease Gini suggests that it is important in predicting whether a stop progressed to a vehicle search. This is similar to what we found from the single classification tree. Overall, the result from Fig. 2 underscores that people of certain races are more likely to get vehicle searched at a traffic stop and implies the existence of a racial bias of police officers in Minneapolis.
+
+### Random forest
+In a similar fashion to bagging, random forest algorithms use an ensemble of trees to produce a desired prediction. The way that random forest works is that it takes a collection of “weak learner” decision trees whose predictions on the dataset are slightly better than random. The algorithm then takes a majority vote from the trees to determine the best value for the prediction. The way that the algorithm produces these weak learners is by only exposing each tree to a limited subset of the variables, such that each tree is as independent from each other as possible in producing predictions. As a result, to tune the random forest, we can tune the number of variables each tree sees and also the number of trees in the ensemble. We can also set a “cutoff” array (k1, k2), where a prediction for case 1 over case 2 would mean that the ratio of the number of votes for case 1:k1 is greater than the ratio of the number of votes for case 2:k2 and vice versa. 
+To optimize the algorithm, we varied the number of trees (ntree) in the ensemble, the number of variables that a given tree sees (mtry), and the cutoff. Upon varying the number of trees incrementally from 300 to 700, we determined that 500 was the optimal value for the random forest. We also tried tuning mtry, which did not significantly alter our results, but we notice a slight decline in classification error and increase in OOB error rate as mtry increases. As a result, we select mtry = 3 to optimize both. We also observe the optimal cutoff occurs at (0.6, 0.4), where we force predictions that the vehicle does not get searched to take 60% of the votes in order to be the winning prediction. This cutoff served in decreasing the number of false negatives, which allowed for a reduced number of total false predictions. 
+
+```{r}
+# rf_vs2$importance
+
+# visualize
+varImpPlot(rf_vs2,
+           main = "Fig 3. Variable importance for random forest")
+```
+
+Fig. 3 portrays plots of mean decrease in accuracy and mean decrease in Gini for our random forest model. Fig. 3 also has problem, reason, and race as the top three factors that increase the classification accuracy and long, lat, and race as the top three factors that increase the Gini index of the model the most. This again suggests the importance of race in predicting whether an individual’s vehicle will be searched at a traffic stop and the potential presence of racial profiling in traffic stops in Minneapolis.
+
+## 3.4 (3c) Tradeoff between efficacy and interpretability
+
+As previously mentioned, we are discouraged from using a single decision tree as our method of choice due to the variability and uncertainty associated with using only one tree, especially seeing as we are also given the option of using more advanced models. In providing us with a set of rules, however, we do argue that a single classification tree sometimes allows for better interpretation of the research questions. In the case of our random forest, we are able to quantify the importance of features to the model, an output which was certainly beneficial for our suggestion that the data may show MPD’s racial bias. Unfortunately, we were not able to discern against which races the MPD were biased based on just the random forest importance. The single classification tree, on the other hand, provided us with the classes associated with splits. We are thus able to infer that the decision tree suggests that the MPD may have been racially biased against Black and Native American people when escalating traffic stops to vehicle searches. This kind of information is fairly crucial if we aim to learn more about what statistical learning models can tell us about MPD's racial bias. Random forests, which we would argue are more efficacious for the report due to their lower variability, do not afford us this type of knowledge. We still chose to use a random forest for question 2 due to the strength of the model relative to a single tree, which inherently works with less data.
