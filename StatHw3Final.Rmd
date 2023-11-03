@@ -18,7 +18,7 @@ To assess the temporal component of our question, we gauged how to split the dat
 As mentioned above, we are also interested in using variables which already exist within the data set, such as personal characteristics, as other predictors. The exact set of variables used in each model may be slightly different due to the tuning process, but in all cases we are particularly interested in gauging whether the variable “race” is considered important. As MPD officers record the race of the person involved in the traffic stop after the stop occurs, we believe it could be indicative of racial bias if models consider this variable an important predictor for a vehicle search, an event that happens while a stop is in progress (Prof. Lyford, personal communication, 10/30/2023). We could thus say another research question of ours is whether the models we produce suggest racial bias in who the MPD subjected to vehicle searches. We also remain interested in other variables – other questions could be whether MPD officers were biased in regards to gender when choosing to conduct vehicle searches or whether the police precinct is a useful predictor of which traffic stops had vehicle searches.
 
 ## Load libraries and data
-```{r}
+```{r, warning = FALSE}
 # import libraries
 library(lubridate)
 library(tidyverse)
@@ -82,19 +82,20 @@ While a decision tree could be useful for interpreting our questions due to the 
 ## Our tree-based method: random forest
 As discussed above, the model we are trying to produce intends to detect (or demonstrate the absence of) police bias during a traffic stop. In particular, we are most interested in learning about if race is an important factor in an officer’s decision to search an individual’s vehicle. As a result, this model strives to distinguish between cases where a vehicle does not get searched and cases where the vehicle does. If race is an important variable in a given model, this indicates that the decision to search a vehicle is influenced by a person’s race and hence that racial bias is present in the policing system. 
 
-The tree based models used in our analysis answer these questions, as trees will split based on variables that it deems the most significant when splitting up the data. In the case of the regular decision tree, the algorithm determines which variables make splits that best separate the data into like groups and the variable(s) that the tree “decides” to split on when grouping the data are the variables that are most significant in predictions. Tree ensemble algorithms (random forest and bagging for example) expand upon a single decision tree by creating an ensemble of decision trees each making predictions on ~⅔ of the total observations. This method allows for a smaller variance by adding more trees and hence reducing the uncertainty in predictions made from a single tree. In the case of a random forest, since each tree only sees a random subset of the total number of variables, the trees do not have the entire data set to choose from. However, we can still assess the importance of a given variable by analyzing how well a random forest model performs without the given variable how much or how well such a variable splits the groups. We quantify these values using metrics called the mean decrease in accuracy and the Gini index respectfully. The case where each tree in a random forest can have access to all the desired prediction variables is called bootstrap aggregating (“bagging”). Using bagging, we can assess variable importance in the same manner and hence determine if race is an important predictor variable in predicting vehicle searches. 
+The tree based models used in our analysis answer these questions, as trees will split based on variables that it deems the most significant when splitting up the data. In the case of the regular decision tree, the algorithm determines which variables make splits that best separate the data into like groups and the variable(s) that the tree “decides” to split on when grouping the data are the variables that are most significant in predictions. Tree ensemble algorithms (random forest and bagging for example) expand upon a single decision tree by creating an ensemble of decision trees each making predictions on ~⅔ of the total observations. This method allows for a smaller variance by adding more trees and hence reducing the uncertainty in predictions made from a single tree. In the case of a random forest, since each tree only sees a random subset of the total number of variables, the trees do not have the entire data set to choose from. However, we can still assess the importance of a given variable by analyzing how well a random forest model performs without the given variable how much or how well such a variable splits the groups. We quantify these values using metrics called the mean decrease in accuracy and the Gini index respectfully (see Section 3 for more details). The case where each tree in a random forest can have access to all the desired prediction variables is called bootstrap aggregating (“bagging”). Using bagging, we can assess variable importance in the same manner and hence determine if race is an important predictor variable in predicting vehicle searches. 
 
 Upon implementing these three algorithms, we determined that the random forest approach yielded the best results in terms of the total number of false predictions and the out of bag error. On a base level, the algorithm predicts whether or not a vehicle was searched based on the following variables:
-- Problem: the reported problem associated with the traffic stop
-- Reason: the reported reason for pulling over the individual
-- preRace: the assumed race before the stop occurred
-- Race: the race that the officer reports of the individual after the interaction is concluded
-- Gender: the gender of the stopped person
-- Lat: the lattitude where the stop occurred
-- Long: the longitude where the stop occurred 
-- PolicePrecinct: the precinct that made the stop 
-- Night: binary variable of whether (1) or not (0) the stop was made between the hours of 7pm-6am 
-- Case: binary variable of whether the stop was made before (0) or after (1) George Floyd.
+
+* Problem: the reported problem associated with the traffic stop
+* Reason: the reported reason for pulling over the individual
+* preRace: the assumed race before the stop occurred
+* Race: the race that the officer reports of the individual after the interaction is concluded
+* Gender: the gender of the stopped person
+* Lat: the lattitude where the stop occurred
+* Long: the longitude where the stop occurred 
+* PolicePrecinct: the precinct that made the stop 
+* Night: binary variable of whether (1) or not (0) the stop was made between the hours of 7pm-6am 
+* Case: binary variable of whether the stop was made before (0) or after (1) George Floyd.
 
 ```{r}
 # Random forest function with tuning parameters
@@ -116,7 +117,7 @@ To evaluate our algorithms, we used a combination of out-of-bag (OOB) error, a c
 ## 3.1. Comparison of OOB error and cost of FP and FN
 The OOB error value provides insight on how well the model will perform on future data. Because the calculation of OOB is done by making predictions on a certain observation based on trees that did not see that variable, this error is a valid representation of how the model might work on future data not present in the existing dataset. This method is built into both the bagging and random forest methods, where an ensemble of trees make predictions on the data and each tree does not see the entire dataset. Because the normal decision tree method consists of a single tree (not an ensemble), to assess how well the algorithm might perform on future data, we split the given dataset into training and testing sets to use to build and validate the data respectfully. This method will allow us to determine how well the decision tree will generalize.
 
-In addition to the OOB error, we also used a cost of FP and FN because we assumed that the cost of FP was equal to the cost of FN but the OOB error did not reflect that assumption. OOB error is computed as the weighted average of the classification error, which are in this case the classification error for “NO” and “YES.” Recall that the randomForest function prints a confusion matrix as below (TN is true negatives and TP is true positives).
+In addition to the OOB error, we also used a cost of FP and FN because we assumed that the cost of FP was equal to the cost of FN but the OOB error did not reflect the assumption. OOB error is computed as the weighted average of the classification error, which are in this case the classification error for “NO” and “YES.” Recall that the randomForest function prints a confusion matrix as below (TN is true negatives and TP is true positives).
 
 +---------------+---------------+---------------+---------------+
 |               |               |Predictions                    |
@@ -131,6 +132,8 @@ In addition to the OOB error, we also used a cost of FP and FN because we assume
 +---------------+---------------+---------------+---------------+
 
 Thus, OOB error is equal to $\frac{FP}{TN+FP}\times\text{true proportion of NO in data} + \frac{FN}{FN+TP}\times\text{true proportion of YES in data}$. Since about 92 % of observations in the original data has “NO” for vehicle search, the OOB error in this case is $\frac{FP}{TN+FP} \times 0.92 + \frac{FN}{FN+TP} \times 0.08$. Thus, the OOB error puts a substantially higher weight on the classification error for “NO” than that for “YES.” Using only this OOB error as an accuracy measure would not be a problem if we assumed that the cost of FP was considerably higher than that of FN. However, we believe that costs of FP and FN are equal in this homework. This is because our goal is to understand the relationship between a vehicle search and predictor variables as accurately as possible and a false prediction (either a FP or FN) affects this goal negatively. For this reason, we assigned a cost of 1 to each FP or FN and used the total cost of FP and FN as a metric to compare the efficacy of the three tree-based methods.
+
+In the following, we compare the OOB error and the cost of FP and FN of our three tree-based methods.
 
 ### Single classification tree
 
@@ -186,18 +189,22 @@ oob_tree1 <- (class_err_no*prop_no + class_err_yes*prop_yes)*100
 oob_tree1
 ```
 
-Thus, the OOB error for this single classification tree is approximately `r oob_tree1`%. Next, calculate the cost of FP and FN for this tree.
+Thus, the OOB error for this single classification tree is approximately 7.89%. Next, calculate the cost of FP and FN for this tree. Note that the size of the test data is half of the original data. Hence, to compare the cost of FP and FN with that of bagging and random forest (both of which use the whole data for their confusion matrices), we multiply 2 with the cost of FP and FN of this single tree. 
+
 
 ```{r}
 cost_tree1 <- (5831 + 367)*2
 cost_tree1
 ```
 
-The cost of FP and FN for this single classification tree is `r cost_tree1`.
+The cost of FP and FN for this single classification tree is 12396.
 
 ### Bagging
 
 #### Build a bagged model and find the overall OOB error
+
+To optimize our bagged model, we varied the cutoff and the number of predictor variables. Comparing the OOB error rate and the cost of FP and FN from bagged models with different cutoffs, we concluded that the optimal cutoff was (0.5, 0.5). Another attempt we did to otpimize our bagged model was to remove predictor variables "night" and "policePrecinct" because they had the smallest (least positive) mean decrease in accuracy and mean decrease in Gini, respectively (see Fig. 2 in Section 3.3). However, removing them increased the OOB error slightly. Thus, we chose to use all ten predictor variables as described in Section 2 for bagging. Moreover, we considered increasing a number of bootstrapped samples (ntree) from 500 (default) to improve accuracy, but doing so would be computationally expensive and we did not do that for our bagged model.
+
 ```{r}
 # library(randomForest)
 set.seed(1)
@@ -220,20 +227,20 @@ cost_bag <- 3914 + 10552
 cost_bag
 ```
 
-The cost of FP and FN for this single classification tree is `r cost_bag`.
+The cost of FP and FN for this single classification tree is 14466.
 
 ### Random forest (same model as the one used in Section 2)
 
 ```{r}
 rf_vs2
 ```
-From the above chunk, the OOB error for our random forest is 7.95 %. We also calculate the cost of FP and FN for this random forest. Since the confusion matrix here has true outcomes in the rows and predictions in the columns, we have 1241 FP and 11237 FN.
+From the above chunk, the OOB error for our random forest is 7.95 %. We also calculate the cost of FP and FN for this random forest. Since the confusion matrix here has true outcomes in the rows and predictions in the columns, we have 1248 FP and 11219 FN.
 
 ```{r}
-cost_rf_vs2 <- 1241+11237
+cost_rf_vs2 <- 1248+11219
 cost_rf_vs2
 ```
-Thus, the cost of FP and FN for our random forest model is `r cost_rf_vs2`.
+Thus, the cost of FP and FN for our random forest model is 12467.
 
 Overall, the order of the OOB error from the lowest to the highest is the single tree, random forest, and bagging. Likewise, the order of the cost of FP and FN from the lowest to the highest is the single tree, random forest, and bagging. Although these results indicate that the single classification tree predicts the variable "vehicleSearch" most accurately, a single decision tree is usually more disadvantageous than bagging and random forest in terms of variance.
 
@@ -241,9 +248,9 @@ Overall, the order of the OOB error from the lowest to the highest is the single
 
 A single decision tree tends to have a higher variance than bagging and random forest. In a single decision tree, we only have one tree to assess error on, while in the bagging and random forest methods, we can make predictions on a given observation based on a third of the ensemble of decision trees, often a quantity much greater than 1. As a result, there will be more variance in the single decision tree’s prediction and hence errors so it will be more difficult to determine classification and overall testing errors for a normal decision tree with high certainty. Conversely, because the random forest and bagging methods rely on a large ensemble of trees, we can reduce the uncertainty associated with the model because the uncertainty will decline as more trees provide input on the prediction. This leads to lower variance in predictions in these models. 
 
-## 3.3 (3b) Comparison of variable importance
+## 3.3 Comparison of variable importance
 
-## Single tree
+### Single classification tree
 Since the root node (the first node) of a decision tree is generally the predictor variable with the highest accuracy, our single classification tree suggests that whether or not an individual is Black or Native American is the most important factor in predicting a vehicle search. Particularly, our single classification tree indicates that the probability of a vehicle search for an individual who is Black or Native American (around 15%) is more than three times higher than that for an individual of other races (around 4%).
 
 This tree could be seen as somewhat deep and complex. To be able to visualize the tree, we tuned the complexity parameter to be the highest value which would still produce a tree with more than just the root. We likely had initial difficulties with visualizing this tree due to the high class imbalance of the vehicleSearch variable. The tree actually used most variables, including problem, reason, policePrecinct, gender, preRace, case, and long. This may suggest that all variables on which the tree split may have some level of importance, but we still argue that race appearing first is significant and can be interpreted in the context of our research question.
@@ -256,12 +263,10 @@ fancyRpartPlot(tree1,
 ```
 
 ### Bagging
-Unlike a single tree, bagging does not allow us to use a decision tree to determine what predictors have the most importance in predicting a vehicle search. One way to overcome this issue is to use metrics called mean decrease accuracy and mean decrease Gini. A mean decrease in accuracy is a mean difference between the classification accuracy of whole trees and that of trees that did not see the predictor variable over all classes ("YES" and "NO" in this case) (Prof. Lyford, class lecture, 10/27/2023). A mean decrease in Gini is a mean difference between the Gini index of whole trees and that of trees that did not see the predictor variable over all classes. The Gini index measures node purity, and a small Gini index means that a node has a majority of observations from a single class, according to page 336 of the textbook. 
+Unlike a single tree, bagging does not allow us to use a decision tree to determine what predictors have the most importance in predicting a vehicle search. One way to overcome this issue is to use metrics called mean decrease accuracy and mean decrease Gini. A mean decrease in accuracy is a mean difference between the classification accuracy of whole trees and that of trees that did not see the predictor variable over all classes ("YES" and "NO" in this case) (Prof. Lyford, class lecture, 10/27/2023). A mean decrease in Gini is a mean difference between the Gini index of whole trees and that of trees that did not see the predictor variable over all classes. The Gini index measures node purity, and a small Gini index means that a node has a majority of observations from a single class (Textbook 8.1.2).
 
 ```{r}
-# bag_veh_rf$importance
-
-# visualize
+# visualize variable importance
 varImpPlot(bag_veh_rf,
            main = "Fig 2. Variable importance for bagging")
 ```
@@ -270,6 +275,7 @@ Fig. 2 shows that problem, reason, and race are the top three factors that incre
 
 ### Random forest
 In a similar fashion to bagging, random forest algorithms use an ensemble of trees to produce a desired prediction. The way that random forest works is that it takes a collection of “weak learner” decision trees whose predictions on the dataset are slightly better than random. The algorithm then takes a majority vote from the trees to determine the best value for the prediction. The way that the algorithm produces these weak learners is by only exposing each tree to a limited subset of the variables, such that each tree is as independent from each other as possible in producing predictions. As a result, to tune the random forest, we can tune the number of variables each tree sees and also the number of trees in the ensemble. We can also set a “cutoff” array (k1, k2), where a prediction for case 1 over case 2 would mean that the ratio of the number of votes for case 1:k1 is greater than the ratio of the number of votes for case 2:k2 and vice versa. 
+
 To optimize the algorithm, we varied the number of trees (ntree) in the ensemble, the number of variables that a given tree sees (mtry), and the cutoff. Upon varying the number of trees incrementally from 300 to 700, we determined that 500 was the optimal value for the random forest. We also tried tuning mtry, which did not significantly alter our results, but we notice a slight decline in classification error and increase in OOB error rate as mtry increases. As a result, we select mtry = 3 to optimize both. We also observe the optimal cutoff occurs at (0.6, 0.4), where we force predictions that the vehicle does not get searched to take 60% of the votes in order to be the winning prediction. This cutoff served in decreasing the number of false negatives, which allowed for a reduced number of total false predictions. 
 
 ```{r}
