@@ -98,8 +98,9 @@ Upon implementing these three algorithms, we determined that the random forest a
 * Case: binary variable of whether the stop was made before (0) or after (1) George Floyd.
 
 ```{r}
+set.seed(1)
 # Random forest function with tuning parameters
-rf_vs2 <- randomForest(factor(vehicleSearch) ~ preRace + race + gender + case + policePrecinct + night + reason + problem + lat + long, data = stop_data_factored, ntree = 500, cutoff = c(0.6, 0.4), importance = TRUE)
+rf_vs2 <- randomForest(factor(vehicleSearch) ~ preRace + race + gender + case + policePrecinct + night + reason + problem + lat + long, data = stop_data_factored, ntree = 500, cutoff = c(0.5, 0.5), importance = TRUE)
 
 # 0.31315 G-Mean
 rf_vs2
@@ -237,7 +238,7 @@ rf_vs2
 From the above chunk, the OOB error for our random forest is 7.95 %. We also calculate the cost of FP and FN for this random forest. Since the confusion matrix here has true outcomes in the rows and predictions in the columns, we have 1248 FP and 11219 FN.
 
 ```{r}
-cost_rf_vs2 <- 1248+11219
+cost_rf_vs2 <- 625+11666
 cost_rf_vs2
 ```
 Thus, the cost of FP and FN for our random forest model is 12467.
@@ -276,7 +277,7 @@ Fig. 2 shows that problem, reason, and race are the top three factors that incre
 ### Random forest
 In a similar fashion to bagging, random forest algorithms use an ensemble of trees to produce a desired prediction. The way that random forest works is that it takes a collection of “weak learner” decision trees whose predictions on the dataset are slightly better than random. The algorithm then takes a majority vote from the trees to determine the best value for the prediction. The way that the algorithm produces these weak learners is by only exposing each tree to a limited subset of the variables, such that each tree is as independent from each other as possible in producing predictions. As a result, to tune the random forest, we can tune the number of variables each tree sees and also the number of trees in the ensemble. We can also set a “cutoff” array (k1, k2), where a prediction for case 1 over case 2 would mean that the ratio of the number of votes for case 1:k1 is greater than the ratio of the number of votes for case 2:k2 and vice versa. 
 
-To optimize the algorithm, we varied the number of trees (ntree) in the ensemble, the number of variables that a given tree sees (mtry), and the cutoff. Upon varying the number of trees incrementally from 300 to 700, we determined that 500 was the optimal value for the random forest. We also tried tuning mtry, which did not significantly alter our results, but we notice a slight decline in classification error and increase in OOB error rate as mtry increases. As a result, we select mtry = 3 to optimize both. We also observe the optimal cutoff occurs at (0.6, 0.4), where we force predictions that the vehicle does not get searched to take 60% of the votes in order to be the winning prediction. This cutoff served in decreasing the number of false negatives, which allowed for a reduced number of total false predictions. 
+To optimize the algorithm, we varied the number of trees (ntree) in the ensemble, the number of variables that a given tree sees (mtry), and the cutoff. Upon varying the number of trees incrementally from 300 to 700, we determined that 500 was the optimal value for the random forest. We also tried tuning mtry, which did not significantly alter our results, but we notice a slight decline in classification error and increase in OOB error rate as mtry increases. As a result, we select mtry = 3 to optimize both. We also observe the optimal cutoff occurs at (0.5, 0.5), where we force predictions that the vehicle does not get searched to take 50% of the votes in order to be the winning prediction. This cutoff served in decreasing the number of false negatives, which allowed for a reduced number of total false predictions. 
 
 ```{r}
 # rf_vs2$importance
